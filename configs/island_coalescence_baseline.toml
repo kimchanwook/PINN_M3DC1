@@ -1,0 +1,33 @@
+[case]
+name = "island_coalescence_baseline"
+schema_version = "0.1.0"
+random_seed = 20260802
+
+[domain]
+Lx = 6.283185307179586
+Ly = 6.283185307179586
+periodic_x = true
+periodic_y = true
+
+[physics]
+eta = 0.001
+nu = 0.001
+A0 = 0.1
+normalization = "dimensionless_v1"
+sign_convention = "docs/equations_and_conventions.md"
+
+[discretization]
+method = "pseudo_spectral"
+nx = 128
+ny = 128
+dealiasing = "two_thirds"
+time_integrator = "to_be_selected"
+dt = 0.001
+t_final = 5.0
+save_interval = 0.05
+
+[output]
+format = "hdf5"
+fields = ["psi", "U", "J", "omega"]
+diagnostics = ["magnetic_energy", "kinetic_energy", "peak_current", "reconnected_flux"]
+

@@ -1,0 +1,101 @@
+\documentclass[11pt]{article}
+\input{docs/shared/project_style.tex}
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+
+\begin{document}
+\DocTitle{Project Plan}{PINN\_M3DC1}{Physics-informed surrogate architecture for M3D-C1-shaped nonlinear resistive-MHD workflows}
+
+\begin{overviewbox}
+\textbf{Purpose.} This is the living roadmap for \texttt{PINN\_M3DC1}. The project begins with a verified two-dimensional reduced-MHD benchmark and a fair data-only-versus-PINN comparison. Genuine M3D-C1 exports enter only through a later adapter and require a new validation claim.
+\end{overviewbox}
+
+\begin{notebox}
+\textbf{Current status.} Version 0.1 establishes the repository backbone, seven-module dependency registry, parallel Python/MATLAB structure, scientific claim hierarchy, initial configuration, and reduced-MHD sign conventions. No numerical MHD solver or trained surrogate is yet claimed.
+\end{notebox}
+
+\ProjectTOC
+
+\clearpage
+
+\section{Objective and claim boundary}
+The objective is to determine whether physics-informed learning improves a parameterized neural surrogate for nonlinear resistive-MHD evolution under controlled data budgets. Version 1 uses independently generated synthetic arrays. It supports the claim that a PINN can approximate a stated reduced model; it does not establish fidelity to M3D-C1. A validated M3D-C1 surrogate requires genuine code outputs, complete metadata, held-out M3D-C1 cases, and renewed verification.
+
+\section{Initial physics benchmark}
+The periodic two-field model evolves magnetic flux $\psi$ and stream function $U$. Define
+\begin{equation}
+ [f,g]=f_xg_y-f_yg_x,\qquad J=-\nabla^2\psi,\qquad \omega=\nabla^2U .
+\end{equation}
+The frozen version-1 residuals are
+\begin{align}
+ R_\psi &= \partial_t\psi+[U,\psi]-\eta\nabla^2\psi,\\
+ R_\omega &= \partial_t\omega+[U,\omega]-[J,\psi]-\nu\nabla^2\omega .
+\end{align}
+The first nonlinear case is magnetic-island coalescence. It is small enough for independent implementation while retaining advection, current-sheet formation, resistive reconnection, dissipation, and parameter-dependent time evolution.
+
+\section{Module roadmap}
+\begin{singlespace}
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\begin{longtable}{p{0.07\linewidth} p{0.34\linewidth} p{0.50\linewidth}}
+\toprule
+\textbf{No.} & \textbf{Module} & \textbf{Purpose}\\
+\midrule
+1 & Reduced Resistive-MHD Physics and Conventions & Freeze variables, signs, normalization, boundary conditions, invariants, and diagnostic definitions.\\
+2 & Synthetic MHD Solver and Case Generation & Generate verified periodic island-coalescence trajectories and convergence evidence.\\
+3 & Dataset Contracts and M3D-C1-Shaped I/O & Store fields, parameters, coordinates, provenance, splits, and normalization in versioned schemas.\\
+4 & Data-Only Surrogate Baseline & Establish the fair parameterized neural baseline on complete held-out parameter cases.\\
+5 & Physics-Informed Surrogate & Add PDE, initial, boundary, and optional global-balance constraints to the same learning task.\\
+6 & Validation, Diagnostics, and Benchmarking & Compare field accuracy, physical histories, residuals, generalization, runtime, and ablations.\\
+7 & M3D-C1 Export Adapter and Transfer Learning & Map genuine exported fields and metadata into the project contract without silently changing physical meaning.\\
+\bottomrule
+\end{longtable}
+\normalsize
+\end{singlespace}
+
+\section{Data and model contract}
+A synthetic case stores $(x,y,t)$, $\psi$, $U$, $J$, $\omega$, $\eta$, $\nu$, $A_0$, normalization, discretization, boundary conditions, solver provenance, and diagnostic histories. The initial surrogate is
+\begin{equation}
+ (x,y,t,\eta,\nu,A_0)\longmapsto(\widehat\psi,\widehat U),
+\end{equation}
+with $\widehat J$ and $\widehat\omega$ derived by automatic differentiation. Plot images are not training data because they omit the numerical field values and metadata needed to define this map.
+
+\section{Controlled comparison}
+\begin{center}
+\begin{tabularx}{\textwidth}{Yccc}
+\toprule
+\textbf{Model} & \textbf{Data loss} & \textbf{Physics losses} & \textbf{Role}\\
+\midrule
+Reduced-MHD solver & -- & Discretized equations & Synthetic reference\\
+Data-only network & yes & no & Fair neural baseline\\
+Parameterized PINN & yes & PDE/IC/BC & Physics-information test\\
+\bottomrule
+\end{tabularx}
+\end{center}
+The two neural models use identical case splits, observations, and comparable capacity. Entire $(\eta,\nu,A_0)$ combinations are excluded from training. Interpolation and extrapolation are reported separately.
+
+\section{Verification and validation}
+The reference solver must pass derivative, bracket, periodicity, divergence, convergence, and energy-behavior checks before producing training data. Surrogate evaluation includes relative $L_2$ and $L_\infty$ errors for all fields, peak-current and current-sheet errors, magnetic and kinetic energy histories, reconnection metrics, PDE residuals, and periodicity. Runtime reporting includes reference generation, training, inference, and break-even query count.
+
+\clearpage
+\section{Implementation sequence}
+\begin{enumerate}[leftmargin=2em]
+\item Freeze equations, normalization, case schema, and diagnostic definitions.
+\item Implement the independent pseudo-spectral solver in Python and MATLAB.
+\item Produce one converged island-coalescence reference trajectory.
+\item Generate a parameter sweep and freeze whole-case data splits.
+\item Train the data-only parameterized baseline.
+\item Debug a single-case PINN, then train the parameterized PINN.
+\item Run ablations, generalization tests, uncertainty checks, and cost analysis.
+\item Add and validate an adapter only when genuine M3D-C1 arrays are available.
+\end{enumerate}
+
+\section{Acceptance milestones}
+\textbf{M1 -- synthetic solver.} One command writes a reproducible HDF5 case and diagnostics; refinement and dissipation checks pass.
+
+\textbf{M2 -- fair learning experiment.} Data-only and PINN models share cases, samples, capacity assumptions, and scoring.
+
+\textbf{M3 -- held-out validation.} Field and physics metrics are reported on unseen parameter combinations, with interpolation separated from extrapolation.
+
+\textbf{M4 -- M3D-C1 transfer.} Exported variables, mesh, normalization, closures, and boundary conditions are mapped explicitly; the full test suite is rerun before an M3D-C1 surrogate claim is made.
+
+\end{document}
