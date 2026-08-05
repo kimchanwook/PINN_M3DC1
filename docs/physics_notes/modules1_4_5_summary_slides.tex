@@ -27,10 +27,12 @@
 \setbeamercolor{block title example}{fg=white,bg=AccentTeal}
 \setbeamercolor{block body example}{fg=BodyGray,bg=SoftTeal}
 
-\setbeamerfont{normal text}{size=\fontsize{16}{20}\selectfont}
-\setbeamerfont{frametitle}{size=\fontsize{35}{39}\selectfont,series=\bfseries}
-\setbeamerfont{block title}{size=\fontsize{17}{20}\selectfont,series=\bfseries}
-\setbeamerfont{block body}{size=\fontsize{15.5}{19}\selectfont}
+\setbeamerfont{normal text}{size=\fontsize{15.5}{18.8}\selectfont}
+% This is a dense personal-reference deck: frame titles deliberately use
+% approximately the same size as the body, distinguished only by weight/color.
+\setbeamerfont{frametitle}{size=\fontsize{16}{19}\selectfont,series=\bfseries}
+\setbeamerfont{block title}{size=\fontsize{15.5}{18.5}\selectfont,series=\bfseries}
+\setbeamerfont{block body}{size=\fontsize{15}{18}\selectfont}
 \setbeamerfont{footline}{size=\fontsize{10}{12}\selectfont}
 
 \setbeamertemplate{navigation symbols}{}
@@ -54,9 +56,9 @@
 }
 
 \setbeamertemplate{frametitle}{%
-  \vspace{0.10cm}
+  \vspace{0.02cm}
   \usebeamerfont{frametitle}\insertframetitle\par
-  \vspace{-0.25cm}
+  \vspace{-0.18cm}
   {\color{AccentTeal}\rule{\textwidth}{0.8pt}}
 }
 
@@ -92,7 +94,7 @@
 
 \setmodule{Module 1}{1 of 6}
 \begin{frame}{Module 1: Reduced resistive MHD}
-The version-1 model is two-dimensional, incompressible, two-field reduced resistive magnetohydrodynamics on a doubly periodic Cartesian domain:
+The version-1 model is two-dimensional, incompressible, two-field reduced resistive magnetohydrodynamics (RMHD) on a doubly periodic Cartesian domain:
 \[
 (x,y,t)\in[0,2\pi)\times[0,2\pi)\times[0,T].
 \]
@@ -103,10 +105,11 @@ The version-1 model is two-dimensional, incompressible, two-field reduced resist
 \]
 
 \begin{itemize}
-  \item $\psi$ is the magnetic-flux function and $U$ is the flow stream function.
-  \item $\eta$ is magnetic diffusivity, $\nu$ is kinematic viscosity, and $A_0$ sets the initial perturbation.
-  \item The initial trajectories are synthetic reduced-MHD solutions, not genuine M3D-C1 output.
+  \item $\psi$ is the magnetic-flux function; $U$ is the flow stream function.  The coefficients $\eta$ and $\nu$ are constant within one case; $A_0$ indexes its initial perturbation.
+  \item Frozen assumptions: $\partial_z=0$, constant density, $\nabla\!\cdot\vect v=0$, scalar resistivity and viscosity, and a prescribed uniform guide field outside the two evolved fields.
+  \item Omitted physics includes compressibility, density/temperature evolution, Hall and two-fluid terms, kinetic closures, toroidal geometry, conducting walls, and free-boundary effects.
 \end{itemize}
+\textcolor{WarningRed}{\textbf{Scope:}} these are synthetic RMHD trajectories in an M3D-C1-shaped workflow, not genuine M3D-C1 output.
 \end{frame}
 
 \setmodule{Module 1}{2 of 6}
@@ -122,7 +125,7 @@ The version-1 model is two-dimensional, incompressible, two-field reduced resist
 \[
 J=-\nabla^2\psi.
 \]
-$J$ is the out-of-plane current variable.
+$J\widehat{\vect z}$ is the normalized out-of-plane current variable; a uniform guide field $B_g\widehat{\vect z}$ is represented separately.
 \end{column}
 \begin{column}{0.49\textwidth}
 \textbf{Fluid velocity}
@@ -134,16 +137,18 @@ $J$ is the out-of-plane current variable.
 \[
 \omega=\nabla^2U.
 \]
-$\omega$ is the out-of-plane vorticity.
+$\omega\widehat{\vect z}=\nabla\times\vect v_\perp$ is the out-of-plane vorticity.  Adding a spatial constant to $U$ changes no velocity.
 \end{column}
 \end{columns}
 
 \[
 \nabla\cdot\vect{B}_{\perp}=0,
 \qquad
-\nabla\cdot\vect{v}_{\perp}=0.
+\nabla\cdot\vect{v}_{\perp}=0,
+\qquad
+\average{J}=0.
 \]
-Thus divergence constraints hold identically. The project predicts $(\psi,U)$ and derives $(J,\omega)$.
+Thus both divergence constraints hold identically. The network predicts $(\psi,U)$; derivatives supply $(\vect B_\perp,\vect v_\perp,J,\omega)$.  Recovering $U$ from $\omega=\nabla^2U$ requires fixing its zero Fourier mode.
 \end{frame}
 
 \setmodule{Module 1}{3 of 6}
@@ -165,8 +170,13 @@ The stream-function velocity converts transport into a bracket:
 \bracket{f}{g}=-\bracket{g}{f},
 \qquad
 \int_{\Omega}\bracket{f}{g}\dd A=0,
+\qquad
+\int_\Omega h\bracket{f}{g}\dd A
+=\int_\Omega f\bracket{g}{h}\dd A.
 \]
-Thus nonlinear brackets redistribute fields and exchange energy, but do not directly dissipate it.
+The integral identities follow from periodicity.  They make the nonlinear terms conservative: brackets redistribute structure and exchange magnetic and kinetic energy, but create no net dissipation.
+
+In the ideal flux equation ($\eta=0$), $D\psi/Dt=0$: magnetic-flux labels move with the fluid.  Reconnection therefore requires a non-ideal term or a breakdown of the model assumptions.
 \end{frame}
 
 \setmodule{Module 1}{4 of 6}
@@ -179,11 +189,11 @@ Thus nonlinear brackets redistribute fields and exchange energy, but do not dire
 
 \begin{itemize}
   \item $\bracket{U}{\psi}$ transports magnetic-flux contours with the fluid.
-  \item $\eta\nabla^2\psi=-\eta J$ permits resistive slippage and topology change in current layers.
-  \item $\bracket{U}{\omega}$ transports vorticity, while $\bracket{J}{\psi}$ is magnetic forcing from the Lorentz force.
-  \item $\nu\nabla^2\omega$ smooths vorticity and dissipates kinetic energy.
+  \item $\eta\nabla^2\psi=-\eta J$ permits field-line slippage.  In a sheet of width $\delta$, $\eta\nabla^2\psi\sim\eta\psi/\delta^2$; small global $\eta$ can therefore matter locally.
+  \item $\bracket{U}{\omega}$ transports vorticity; $\bracket{J}{\psi}=J_x\psi_y-J_y\psi_x$ is the curl of the in-plane Lorentz force.
+  \item $\nu\nabla^2\omega$ damps fine-scale flow. Pressure is not zero; curling the constant-density momentum equation eliminates its gradient.
 \end{itemize}
-
+Evolving $(\psi,\omega)$ requires solving $\nabla^2U=\omega$ each step; the neural surrogate outputs $(\psi,U)$ directly.
 \end{frame}
 
 \setmodule{Module 1}{5 of 6}
@@ -195,29 +205,37 @@ t_A=\frac{L_0}{V_A}.
 \]
 
 \[
+\psi^*=\frac{\psi_{\rm dim}}{B_0L_0},
+\qquad
+U^*=\frac{U_{\rm dim}}{L_0V_A},
+\qquad
+t^*=\frac{t_{\rm dim}}{t_A}.
+\]
+
+\[
 \eta=\frac{\eta_m}{L_0V_A},
 \qquad
 \nu=\frac{\nu_d}{L_0V_A}.
 \]
 
 \[
-S=\frac{1}{\eta}=\frac{t_\eta}{t_A},
+S=\frac{1}{\eta}=\frac{t_\eta}{t_A},\quad t_\eta=\frac{L_0^2}{\eta_m},
 \qquad
-\mathrm{Re}=\frac{1}{\nu}=\frac{t_\nu}{t_A},
+\mathrm{Re}=\frac{1}{\nu}=\frac{t_\nu}{t_A},\quad t_\nu=\frac{L_0^2}{\nu_d},
 \qquad
 \mathrm{Pm}=\frac{\nu}{\eta}.
 \]
 
-$S$ and $\mathrm{Re}$ compare resistive and viscous diffusion times with $t_A$. Neural standardization is a later numerical transformation, not physical nondimensionalization.
+$S$ and $\mathrm{Re}$ compare diffusion times with the Alfv\'en time; $\mathrm{Pm}$ compares momentum and magnetic diffusion.  The identities $S=1/\eta$ and $\mathrm{Re}=1/\nu$ hold under this declared scaling.  Neural standardization is a later numerical transform, not a change of physical units.
 \end{frame}
 
 \setmodule{Module 1}{6 of 6}
 \begin{frame}{Periodicity and energy close the model}
-Periodic faces and PDE-required derivatives match. Gauge and mean-flux conditions are
+For $f\in\{\psi,U\}$, periodic values and every PDE-required derivative match across opposite faces. Gauge and mean-flux conditions are
 \[
 \boxed{\average{U}(t)=0,}
 \qquad
-\frac{\mathrm d}{\mathrm dt}\average{\psi}=0.
+\boxed{\frac{\mathrm d}{\mathrm dt}\average{\psi}=0.}
 \]
 The exact periodic energy law is
 \[
@@ -227,7 +245,9 @@ The exact periodic energy law is
 =-\eta\int_{\Omega}J^2\dd A
 -\nu\int_{\Omega}\omega^2\dd A\le 0.}
 \]
-Finite $\eta$ enables reconnection in current sheets. This is not full M3D-C1 equivalence.
+The left side contains magnetic plus kinetic energy; only resistivity and viscosity cause net decay.  This identity is a solver/PINN verification test, but it is not sufficient by itself: spatially wrong fields can share the same integral energy.
+
+Island coalescence exercises nonlinear advection, Lorentz forcing, current-sheet formation, resistive topology change, and sensitivity to $(\eta,\nu,A_0)$.  Its exact equilibrium, perturbation, and reconnection diagnostic are Module~2 contracts.
 \end{frame}
 
 % --------------------------------------------------------------------------
@@ -245,13 +265,12 @@ The parameterized coordinate network approximates a family of fields:
 \bigl(\widehat\psi,\widehat U\bigr).}
 \]
 
-Data are split by complete parameter cases:
-\[
-\vect\mu_c=(\eta_c,\nu_c,A_{0,c}).
-\]
+Complete-case split: $\vect\mu_c=(\eta_c,\nu_c,A_{0,c})$.
 \begin{itemize}
   \item No point from a held-out case enters training or preprocessing.
-  \item Parameter interpolation and extrapolation are separate; interpolation within $t\in[0,T]$ is not forecasting beyond $T$.
+  \item A coordinate network evaluates any requested coordinate directly; it is not autoregressive and does not propagate its previous prediction.
+  \item It is not a general neural operator: the initial condition varies only through scalar $A_0$, not an arbitrary function.
+  \item Parameter interpolation and extrapolation are separate; evaluation inside $t\in[0,T]$ is not forecasting beyond $T$. Many points from few cases can still mean memorization.
 \end{itemize}
 \end{frame}
 
@@ -271,13 +290,26 @@ Data are split by complete parameter cases:
 \bigr).
 \]
 
-Smooth functions of $\vect z$ are periodic in value and derivatives. Scaling statistics come from training cases only.
+\[
+r_\eta=\log_{10}\eta,
+\qquad
+r_\nu=\log_{10}\nu,
+\qquad
+\widetilde a=\frac{a-\mu_a^{\rm train}}{\sigma_a^{\rm train}}.
+\]
 
-\textbf{Baseline:} six fully connected $\tanh$ layers of width $128$ and a linear two-output head. Module 5 retains the same architecture family and periodic representation.
+Smooth functions of $\vect z$ are periodic in value and every derivative.  Scaling statistics and output standardization are computed from training cases only, then frozen for validation, testing, and deployment.
+
+\textbf{Baseline:} six fully connected $\tanh$ layers of width $128$ and a linear two-output head.  The smooth activation also supports the high derivatives required later.  Module~5 retains the same architecture family and periodic representation so physics information is the controlled change.
 \end{frame}
 
 \setmodule{Module 4}{3 of 4}
 \begin{frame}{Training uses labeled field error only}
+Each supervised record retains case identity:
+\[
+\bigl(x_n,y_n,t_n,\vect\mu_{c(n)};\ \psi_n,U_n\bigr),
+\qquad c(n)=\text{source case}.
+\]
 For standardized output errors
 \[
 e_{\psi,n}=\widehat{\widetilde\psi}_n-\widetilde\psi_n,
@@ -296,7 +328,7 @@ the case-balanced objective is
 \right].}
 \]
 
-There is no PDE, initial-condition, boundary-condition, gauge, global-balance, $J$, $\omega$, derivative, or spectral target loss. Adam, mini-batches, regularization, and early stopping are optimization choices; they do not make the model physics-informed.
+Case balancing prevents long trajectories from dominating. No physics-derived constraint or target appears: no PDE, IC, BC, gauge, global-balance, $J$, $\omega$, derivative, or spectral loss. Optimizer and regularization choices do not make the model physics-informed.
 \end{frame}
 
 \setmodule{Module 4}{4 of 4}
@@ -312,9 +344,13 @@ Evaluation uses complete unseen fields, not training loss alone. For $a\in\{\psi
 \qquad
 \widehat\omega=\nabla^2\widehat U,
 \]
-Derived fields, energy, reconnection measures, periodicity, and PDE residuals are evaluation-only diagnostics.
+and current-sheet sensitivity is measured by
+\[
+J_{\max}(t)=\max_{(x,y)\in\Omega}|J(x,y,t)|.
+\]
+Derived fields, spectra, energy, reconnection measures, periodicity defects, and term-normalized PDE residuals are evaluation-only diagnostics; none are backpropagated.
 
-\textcolor{WarningRed}{\textbf{Controlled comparison:}} Modules 4 and 5 share splits, labels, preprocessing, periodic encoding, architecture family, data loss, metrics, and seeds. Physics helps only if the matched PINN improves a declared metric, with added compute disclosed.
+\textcolor{WarningRed}{\textbf{Controlled comparison:}} Modules~4 and~5 share case splits, labeled-data budgets, preprocessing, periodic encoding, architecture family, data loss, metrics, and random seeds.  Report interpolation, extrapolation, data-efficiency curves, repeated seeds, and wall-clock/compute cost. Physics helps only if a matched PINN improves a declared metric.
 \end{frame}
 
 % --------------------------------------------------------------------------
@@ -347,7 +383,9 @@ The local reduced-MHD equation defects are
 -\nu\nabla^2\widehat\omega.}
 \]
 
-At unlabeled collocation points, the PINN receives no solver field values; it is penalized when these residuals are nonzero.
+For example, $\bracket{\widehat U}{\widehat\psi}=\widehat U_x\widehat\psi_y-\widehat U_y\widehat\psi_x$.  Automatic differentiation (AD) differentiates the implemented neural computational graph, not the unknown physical solution.
+
+At unlabeled collocation points $(x_f,y_f,t_f,\vect\mu_f)$, the PINN receives coordinates and coefficients but no solver field values.  The learning signal is the defect of the declared equation.  A small sampled residual is evidence only on the sampled residual norm; it is not automatically a small field error.
 \end{frame}
 
 \setmodule{Module 5}{2 of 5}
@@ -362,13 +400,21 @@ At unlabeled collocation points, the PINN receives no solver field values; it is
 +w_{\mathrm{global}}\mathcal L_{\mathrm{global}}.}
 \]
 
+\[
+\mathcal L_{\mathrm{PDE}}
+=\frac{1}{N_f}\sum_{i=1}^{N_f}
+\left[
+\left(\frac{\Rpsi^{(i)}}{s_\psi}\right)^2
++\left(\frac{\Romega^{(i)}}{s_\omega}\right)^2
+\right].
+\]
+
 \begin{itemize}
   \item $\mathcal L_{\mathrm{data}}$: the identical labeled observations used by Module 4.
-  \item $\mathcal L_{\mathrm{PDE}}$: normalized mean-square $\Rpsi$ and $\Romega$ at collocation points.
-  \item $\mathcal L_{\mathrm{IC}}$: selects the intended trajectory at $t=0$.
-  \item $\mathcal L_{\mathrm{BC}}=0$ for hard periodicity; $\mathcal L_{\mathrm{global}}$ contains gauge, mean-flux, and optional balances.
+  \item $\mathcal L_{\mathrm{IC}}$ at $t=0$ selects the trajectory; the PDE alone is not unique.
+  \item Hard sine-cosine periodicity gives $\mathcal L_{\mathrm{BC}}=0$; $\mathcal L_{\mathrm{global}}$ contains gauge, mean-flux, and optional balances.
 \end{itemize}
-
+Data, collocation, IC, boundary, and quadrature points are distinct populations. Normalize complete residual equations, not individual terms whose cancellation carries the physics.
 \end{frame}
 
 \setmodule{Module 5}{3 of 5}
@@ -381,40 +427,42 @@ Because $\widehat\omega=\nabla^2\widehat U$,
 \qquad
 \nabla^2\widehat\omega=\nabla^4\widehat U.
 \]
-The Lorentz bracket also contains third derivatives of $\widehat\psi$. Therefore smooth activations such as $\tanh$ are required, scaling factors must remain inside the differentiation graph, and derivative precision must be tested.
+Third derivatives of $\widehat\psi$ also occur.  Smooth activations such as $\tanh$, sufficient precision, and analytic derivative tests are mandatory; ReLU is unsuitable for this strong-form residual.
 
-The PDE cannot identify a spatially constant offset in $U$, so a gauge condition remains necessary:
+For $q=s_q\widetilde q+\mu_q$ and $\widetilde x=(x-\mu_x)/s_x$,
 \[
-\boxed{\average{\widehat U}(t,\vect\mu)=0.}
+q_x=\frac{s_q}{s_x}\widetilde q_{\widetilde x},
+\qquad
+q_{xxxx}=\frac{s_q}{s_x^4}\widetilde q_{\widetilde x\widetilde x\widetilde x\widetilde x}.
 \]
+Inverse output scaling and coordinate chain rules must stay inside the residual graph; omitting them silently changes the PDE.
+
+The PDE cannot identify a spatially constant offset in $U$, so the independent gauge condition $\boxed{\average{\widehat U}(t,\vect\mu)=0}$ remains necessary.
 \end{frame}
 
 \setmodule{Module 5}{4 of 5}
 \begin{frame}{Balances and curricula stabilize training}
+Periodic global checks include $\frac{\mathrm d}{\mathrm dt}\average{\widehat\psi}=0$ and $\average{\widehat U}=0$.
 \[
 \boxed{
-\frac{\mathrm d}{\mathrm dt}
-\frac12\int_{\Omega}
-\left(|\nabla\widehat\psi|^2+|\nabla\widehat U|^2\right)\dd A
+\dot E
 +\eta\int_{\Omega}\widehat J^2\dd A
-+\nu\int_{\Omega}\widehat\omega^2\dd A=0.}
++\nu\int_{\Omega}\widehat\omega^2\dd A=0,
+\qquad
+E=\frac12\int_\Omega\left(|\nabla\widehat\psi|^2+|\nabla\widehat U|^2\right)\dd A.}
 \]
 
-Collocation defines the residual norm minimized. Uniform coverage may be supplemented by time-aware, structure-aware, or residual-adaptive points; validation points remain fixed.
+Verified quadrature is required; global penalties supplement local residuals. Collocation defines the minimized norm: augment uniform samples adaptively, but keep validation points fixed.
 
-Training proceeds in stages:
-\[
-\begin{aligned}
-\text{derivative tests}&\rightarrow\text{data warm start}\rightarrow\Rpsi\rightarrow\Romega\\
-&\rightarrow\text{time curriculum}\rightarrow\text{parameterized cases}.
-\end{aligned}
-\]
-Global penalties follow quadrature verification.
+\textbf{Curriculum:} derivative tests $\rightarrow$ data warm start $\rightarrow\Rpsi\rightarrow\Romega$
+$\rightarrow$ time curriculum $\rightarrow$ parameterized cases.
+
+Raw loss magnitudes do not diagnose balance. Monitor gradient norms and cosine similarities; opposing gradients can reveal scale conflict, finite capacity, noise, or model discrepancy.
 \end{frame}
 
 \setmodule{Module 5}{5 of 5}
 \begin{frame}{Physics must add measurable value}
-Module 6 compares matched models on unseen cases using field errors, residuals, condition defects, global balances, and cost.
+Unseen-case scoring covers field errors, residuals, condition defects, global balances, and cost.
 
 \begin{itemize}
   \item A PINN may improve labeled-data efficiency, derivative fidelity, parameter generalization, or physical admissibility.
@@ -422,7 +470,18 @@ Module 6 compares matched models on unseen cases using field errors, residuals, 
   \item Reports include repeated seeds, failures, extrapolation, and data-versus-compute fairness.
 \end{itemize}
 
-\textcolor{WarningRed}{\textbf{Scientific conclusion:}} the PINN is not assumed to win. The result remains a surrogate of synthetic two-field reduced-MHD dynamics; an M3D-C1 surrogate requires genuine M3D-C1 data and Module 7.
+\textbf{Minimum ablation ladder:}
+\[
+\mathcal L_{\rm data}
+\;\longrightarrow\;
+\mathcal L_{\rm data}+\mathcal L_{\rm PDE}
+\;\longrightarrow\;
+\mathcal L_{\rm data}+\mathcal L_{\rm PDE}
++\mathcal L_{\rm IC}+\mathcal L_{\rm global},
+\]
+Vary one component, fix the label budget, and disclose extra collocation/optimization cost.
+
+\textcolor{WarningRed}{\textbf{Scientific conclusion:}} no win is assumed.  The result must be improved held-out accuracy, admissibility, or data efficiency---not merely lower training loss.  Scope remains synthetic two-field RMHD; validated M3D-C1 claims require genuine data and Module~7.
 \end{frame}
 
 \end{document}
