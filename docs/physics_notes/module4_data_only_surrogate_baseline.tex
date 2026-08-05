@@ -1,0 +1,1907 @@
+\documentclass[11pt]{article}
+
+\input{../shared/project_style.tex}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{upquote}
+
+\definecolor{WarningRed}{HTML}{9B2C2C}
+\definecolor{WarmGold}{HTML}{B7791F}
+\definecolor{PaleGold}{HTML}{FFF8E6}
+\definecolor{PaleRed}{HTML}{FFF1F1}
+\definecolor{DeepGreen}{HTML}{276749}
+\definecolor{PaleGreen}{HTML}{F0FFF4}
+
+\newtcolorbox{definitionbox}[1][]{
+  colback=SoftTeal,colframe=AccentTeal,title={Definition#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{warningbox}[1][]{
+  colback=PaleRed,colframe=WarningRed,title={Important distinction#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{checkpointbox}[1][]{
+  colback=PaleGold,colframe=WarmGold,title={Learning checkpoint#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{conventionbox}[1][]{
+  colback=SoftBlue,colframe=TitleBlue,title={Frozen project convention#1},
+  fonttitle=\bfseries,boxrule=0.9pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{practicebox}[1][]{
+  colback=PaleGreen,colframe=DeepGreen,title={Recommended practice#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\pd}{\partial}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\average}[1]{\left\langle #1\right\rangle}
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+\newcommand{\Rpsi}{\mathcal{R}_{\psi}}
+\newcommand{\Romega}{\mathcal{R}_{\omega}}
+\newcommand{\Ldata}{\mathcal{L}_{\mathrm{data}}}
+\newcommand{\Ltrain}{\mathcal{L}_{\mathrm{train}}}
+\newcommand{\Lval}{\mathcal{L}_{\mathrm{val}}}
+\newcommand{\MSE}{\operatorname{MSE}}
+\newcommand{\RMSE}{\operatorname{RMSE}}
+\newcommand{\MAE}{\operatorname{MAE}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\std}{\operatorname{std}}
+\newcommand{\relu}{\operatorname{ReLU}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PINN\_M3DC1}
+\rhead{Module 4 Physics Notes}
+\cfoot{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \lhead{PINN\_M3DC1}%
+  \rhead{Module 4 Physics Notes}%
+  \cfoot{\thepage}%
+}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+\centering
+\vspace*{1.1cm}
+{\Large\color{AccentTeal} PINN\_M3DC1}\par
+\vspace{0.7cm}
+{\Huge\bfseries\color{TitleBlue} Module 4}\par
+\vspace{0.25cm}
+{\LARGE\bfseries\color{TitleBlue} Data-Only Parameterized\ Surrogate Baseline}\par
+\vspace{0.9cm}
+{\large A textbook-style introduction to supervised field learning, fair baselines, and reduced-MHD generalization}\par
+\vfill
+\begin{tcolorbox}[width=0.90\textwidth,colback=SoftBlue,colframe=TitleBlue,arc=2mm]
+\centering
+\textbf{Learning task}\par
+\vspace{0.35em}
+Learn the continuous parameterized map
+\[
+(x,y,t,\eta,\nu,A_0)\longmapsto
+(\widehat\psi,\widehat U)
+\]
+from verified numerical field values alone, without using a partial differential equation, initial-condition loss, boundary-condition loss, or global-balance loss during training.
+\end{tcolorbox}
+\vfill
+{\normalsize Version 1.0 \quad | \quad 4 August 2026}\par
+\vspace{0.25cm}
+{\small Physics and scientific-machine-learning note for the synthetic reduced-MHD proof of concept}\par
+\end{titlepage}
+
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+
+\section*{Preface: why a data-only model belongs in a PINN project}
+
+This project is ultimately interested in a \emph{physics-informed neural network}, abbreviated PINN. It may therefore seem natural to begin directly with the physics-informed model in Module~5. That would be a scientific mistake. If a PINN predicts the fields accurately, the result by itself does not tell us \emph{why}. The network may have learned almost everything from the numerical observations, while the partial differential equation (PDE) constraints contributed little. Alternatively, the physics constraints may substantially improve accuracy, data efficiency, extrapolation, or physical consistency. A controlled data-only baseline is what distinguishes those possibilities.
+
+Module~4 therefore asks a deliberately restricted question:
+\begin{quote}
+Given numerical solutions of the two-field reduced resistive-magnetohydrodynamic model, how accurately can an ordinary supervised neural network learn the solution fields at new points and at entirely unseen physical parameter combinations?
+\end{quote}
+The initials \textbf{MHD} mean \emph{magnetohydrodynamics}, the fluid description of an electrically conducting medium coupled to a magnetic field. The word \textbf{surrogate} means a computational model designed to approximate the input-output behavior of a more expensive reference calculation. The term \textbf{data-only} means that the training objective compares predictions with stored numerical values but contains no equation residual or other physical constraint. The term \textbf{parameterized} means that physical case parameters are explicit inputs, allowing one network to represent a family of simulations rather than only one trajectory.
+
+This note assumes no previous course in machine learning. It begins with the meaning of supervised learning and builds the complete baseline experiment one object at a time. Familiarity with multivariable calculus, matrices, and the Module~1 definitions of magnetic flux $\psi$, stream function $U$, current $J$, and vorticity $\omega$ is helpful. All learning-specific notation is defined before it is used.
+
+\begin{warningbox}
+The Module~4 network is \emph{not} a PINN. It is a conventional supervised coordinate network. Reduced-MHD equations may be used after training to diagnose its predictions, but they may not enter its training loss. If a PDE residual, initial-condition penalty, periodic-boundary penalty, or energy-balance penalty affects parameter updates, the experiment has moved into Module~5.
+\end{warningbox}
+
+\begin{warningbox}[\,: claim boundary]
+The initial project data are generated by an independent two-dimensional reduced-MHD solver. Consequently, Module~4 establishes a data-only surrogate of that synthetic model, not a validated surrogate of genuine M3D-C1 output. Actual M3D-C1 arrays and renewed validation are required for the stronger claim reserved for Module~7.
+\end{warningbox}
+
+\subsection*{How to read this note}
+
+The main conceptual chain is
+\[
+\begin{gathered}
+\text{verified simulation cases}
+\longrightarrow \text{paired inputs and targets}
+\longrightarrow \text{case-wise partitions}\\
+\longrightarrow \text{scaling and periodic encoding}
+\longrightarrow \text{neural network}\\
+\longrightarrow \text{data loss and optimization}
+\longrightarrow \text{unseen-case evaluation}.
+\end{gathered}
+\]
+Sections~\ref{sec:role}--\ref{sec:map} define the scientific question and the exact learned map. Sections~\ref{sec:data}--\ref{sec:periodic} construct a defensible dataset and input representation. Sections~\ref{sec:network}--\ref{sec:optimization} explain the neural network and its training. Sections~\ref{sec:evaluation}--\ref{sec:fairness} define physical evaluation and the controlled comparison with Module~5. Sections~\ref{sec:specification}--\ref{sec:summary} freeze the recommended baseline and implementation handoff.
+
+\subsection*{Learning objectives}
+
+After working through this module, the reader should be able to:
+\begin{enumerate}[label=\arabic*.]
+  \item distinguish the reference solver, training dataset, neural surrogate, and physics-informed surrogate;
+  \item explain why a data-only baseline is required to measure the value of physics information;
+  \item write the project map $(x,y,t,\eta,\nu,A_0)\mapsto(\widehat\psi,\widehat U)$ and define every symbol;
+  \item distinguish a pointwise coordinate network from a time-stepper and a neural operator;
+  \item convert gridded simulation cases into supervised examples without losing case identity;
+  \item prevent leakage by splitting complete parameter cases before selecting points or computing scaling statistics;
+  \item distinguish physical nondimensionalization from numerical feature standardization;
+  \item encode periodic coordinates so that $x=0$ and $x=L_x$ are represented consistently;
+  \item derive the forward equations of a multilayer perceptron and count its trainable parameters;
+  \item explain activation functions, backpropagation, mini-batches, epochs, and the Adam optimizer;
+  \item construct a channel-balanced, case-balanced data loss for $\psi$ and $U$;
+  \item separate model fitting, hyperparameter selection, and final testing;
+  \item distinguish spatial interpolation, temporal interpolation, parameter interpolation, and parameter extrapolation;
+  \item evaluate $J$, $\omega$, energies, periodicity, and PDE residuals without using them to train Module~4;
+  \item design a fair data-budget comparison between the data-only baseline and Module~5 PINN; and
+  \item identify common failure modes such as random-point leakage, output-scale imbalance, spectral bias, gauge drift, and misleading contour plots.
+\end{enumerate}
+
+\ProjectTOC
+\clearpage
+\pagenumbering{arabic}
+
+\section{Scientific role of Module 4}
+\label{sec:role}
+
+\subsection{Four different computational objects}
+
+Several objects in this project can all produce field values, but they are not interchangeable.
+
+\begin{longtable}{p{0.20\textwidth}p{0.34\textwidth}p{0.36\textwidth}}
+\toprule
+Object & What it does & What determines its output \\
+\midrule
+\endfirsthead
+\toprule
+Object & What it does & What determines its output \\
+\midrule
+\endhead
+Reduced-MHD reference solver & Numerically integrates the frozen two-field PDEs from a specified initial condition. & PDEs, initial and boundary conditions, coefficients, grid, time step, and numerical method. \\
+Stored dataset & Records selected solver coordinates, parameters, fields, metadata, and diagnostics. & Reference runs and the versioned data contract from Module~3. \\
+Module~4 data-only surrogate & Fits stored field values by supervised learning. & Network architecture, observed data, scaling, sampling, loss, optimizer, and training choices. \\
+Module~5 physics-informed surrogate & Fits data while also penalizing violations of the governing physics. & Everything used in Module~4 plus PDE, initial-condition, boundary-condition, and optional global constraints. \\
+\bottomrule
+\end{longtable}
+
+The reference solver supplies the best available numerical approximation to the selected reduced model. The word \emph{reference} does not imply exact truth. Its discretization errors must be quantified in Module~2. The neural network learns the stored numerical solutions, so it cannot be more faithful to the mathematical PDE than the data source merely by reproducing the source closely.
+
+\subsection{The controlled scientific question}
+
+Let $M_{\rm data}$ denote the trained data-only model and $M_{\rm phys}$ the later physics-informed model. The central comparison is not
+\[
+\text{``Is }M_{\rm phys}\text{ accurate?''}
+\]
+but rather: \emph{At the same data budget and on the same unseen cases, what changes when physical constraints are added?}
+Possible measured outcomes include:
+\begin{itemize}
+  \item lower or higher field error;
+  \item lower or higher derived-current and vorticity error;
+  \item reduced or unchanged training-data requirement;
+  \item better or worse parameter generalization;
+  \item improved or degraded satisfaction of periodicity and global balances;
+  \item different training cost, memory use, or optimization reliability; and
+  \item different sensitivity to random initialization.
+\end{itemize}
+A negative result is scientifically meaningful. Physics information is not guaranteed to help: the residual may be badly scaled, the model may be difficult to optimize, or the data may already constrain the relevant solution family sufficiently.
+
+\subsection{What ``baseline'' means}
+
+\begin{definitionbox}
+A \textbf{baseline} is a clearly specified comparison method that answers the same prediction question under controlled conditions. A useful baseline is not intentionally weak. It should be competent enough that any improvement by a new method cannot be attributed to an avoidable defect in the comparator.
+\end{definitionbox}
+
+For this project, a fair baseline should have adequate network capacity, appropriate scaling, a periodic input representation, stable optimization, and careful validation. Removing physics losses does not justify using poor architecture or poor data handling.
+
+\begin{checkpointbox}
+If Module~5 outperforms a badly trained Module~4 network, the result demonstrates only that one training setup was better than another. If the models share architecture, observations, preprocessing, case splits, and evaluation, then their difference can be attributed much more directly to the added physics terms and their optimization consequences.
+\end{checkpointbox}
+
+\section{From a simulation family to supervised learning}
+\label{sec:supervised}
+
+\subsection{What supervised learning means}
+
+In \emph{supervised learning}, the available data contain both an input and a desired output. An individual input is often called a \emph{feature vector}; the desired output is called a \emph{target}, \emph{label}, or \emph{response}. The network evaluates a parameterized function
+\begin{equation}
+\widehat{\vect{q}}=\mathcal{N}_{\vect{\theta}}(\vect{z}),
+\label{eq:genericnetwork}
+\end{equation}
+where
+\begin{itemize}
+  \item $\vect{z}$ is the input feature vector;
+  \item $\widehat{\vect{q}}$ is the predicted output vector;
+  \item $\mathcal{N}$ denotes the neural-network computation; and
+  \item $\vect{\theta}$ collects every trainable weight and bias.
+\end{itemize}
+The hat over $\widehat{\vect{q}}$ means ``predicted'' or ``approximated.'' The corresponding reference value without a hat is $\vect{q}$.
+
+Training adjusts $\vect{\theta}$ to reduce a numerical measure of disagreement between $\widehat{\vect{q}}$ and $\vect{q}$. That measure is the \emph{loss function}. In Module~4, the disagreement is evaluated only against stored data.
+
+\subsection{One case versus a family of cases}
+
+A single reduced-MHD simulation has fixed values of the case parameters
+\begin{equation}
+\vect{\mu}=(\eta,\nu,A_0),
+\end{equation}
+where $\eta$ is the dimensionless magnetic diffusivity, $\nu$ is the dimensionless kinematic viscosity, and $A_0$ is the dimensionless initial perturbation amplitude. The solver produces fields over space and time:
+\begin{equation}
+\psi=\psi(x,y,t;\vect{\mu}),
+\qquad
+U=U(x,y,t;\vect{\mu}).
+\end{equation}
+The semicolon is a visual separator: $x$, $y$, and $t$ locate a point within one solution, whereas $\vect{\mu}$ selects which physical case is being considered.
+
+A separate network could be trained for every $\vect{\mu}$. Such a collection would not be a parameterized surrogate and could not predict a new coefficient combination without retraining. Instead, the project gives $\vect{\mu}$ to the network as part of its input. One set of parameters $\vect{\theta}$ then attempts to represent an entire finite-dimensional solution family.
+
+\subsection{Approximation, interpolation, and generalization}
+
+The word \emph{approximation} means that the neural output is close to a target function according to a stated metric. \emph{Interpolation} means prediction within a region supported by training inputs. \emph{Extrapolation} means prediction outside that support. \emph{Generalization} is the broader ability to perform well on examples not used to update the model.
+
+These words must be qualified because the input has six dimensions. A point may interpolate in $x$ and $y$, extrapolate in time, and interpolate in $(\eta,\nu,A_0)$ simultaneously. The project therefore reports which axes are held out rather than using ``generalization'' without qualification.
+
+\section{The exact Module 4 surrogate map}
+\label{sec:map}
+
+\subsection{Primary input and output variables}
+
+The unprocessed physical input is
+\begin{equation}
+\vect{s}=
+\begin{bmatrix}
+x & y & t & \eta & \nu & A_0
+\end{bmatrix}^{\mathsf T},
+\label{eq:rawinput}
+\end{equation}
+where superscript $\mathsf T$ denotes transpose, turning a row into a column. The primary target is
+\begin{equation}
+\vect{q}=
+\begin{bmatrix}
+\psi & U
+\end{bmatrix}^{\mathsf T}.
+\label{eq:target}
+\end{equation}
+The intended learned function is
+\begin{equation}
+\boxed{
+\mathcal{N}_{\vect{\theta}}:
+(x,y,t,\eta,\nu,A_0)
+\longmapsto
+(\widehat\psi,\widehat U).}
+\label{eq:projectmap}
+\end{equation}
+All six inputs and both outputs are dimensionless under the physical normalization frozen in Module~1.
+
+The word \emph{continuous} here means that, once trained, the network can be evaluated at coordinates between stored grid points. It does not mean those off-grid predictions are guaranteed accurate. Their accuracy must be tested against refined or independently interpolated reference solutions.
+
+\subsection{Why $J$ and $\omega$ are not primary targets}
+
+The reduced-MHD definitions are
+\begin{equation}
+J=-\nabla^2\psi,
+\qquad
+\omega=\nabla^2U,
+\label{eq:derivedfields}
+\end{equation}
+where
+\begin{equation}
+\nabla^2=\frac{\pd^2}{\pd x^2}+\frac{\pd^2}{\pd y^2}
+\end{equation}
+is the two-dimensional Laplacian. $J$ is the project current variable and $\omega$ is the out-of-plane vorticity.
+
+The primary baseline predicts $\psi$ and $U$ because these are the evolved potentials and because Module~5 will require differentiable versions of them. Current and vorticity are then derived from the predicted fields. This choice tests whether the network captures spatial curvature, not merely whether it can regress four separately supplied arrays.
+
+\begin{warningbox}
+Small pointwise error in $\psi$ or $U$ does not guarantee small error in $J$ or $\omega$. Second derivatives amplify short-wavelength error. A smooth contour plot may hide oscillations whose amplitude is small but whose curvature is large.
+\end{warningbox}
+
+An optional four-output network $(\widehat\psi,\widehat U,\widehat J,\widehat\omega)$ would answer a different question. It may be useful as an ablation, but it should not silently replace the frozen primary baseline. If used, consistency defects
+\begin{equation}
+\widehat J+\nabla^2\widehat\psi,
+\qquad
+\widehat\omega-\nabla^2\widehat U
+\end{equation}
+must be reported. Penalizing those defects during training would already add physics or differential consistency and would therefore no longer be the strict value-only baseline.
+
+\subsection{Coordinate network, time-stepper, and neural operator}
+
+Three learning formulations are often conflated.
+
+\begin{longtable}{p{0.22\textwidth}p{0.34\textwidth}p{0.34\textwidth}}
+\toprule
+Formulation & Typical map & Interpretation \\
+\midrule
+\endfirsthead
+\toprule
+Formulation & Typical map & Interpretation \\
+\midrule
+\endhead
+Coordinate network & $(x,y,t,\vect{\mu})\mapsto\vect{q}$ & Returns the field value at a requested location, time, and parameter setting. \\
+Time-stepper & $\vect{q}(t_n)\mapsto\vect{q}(t_{n+1})$ & Advances an entire discrete state from one stored time to the next, often autoregressively. \\
+Neural operator & input function $\mapsto$ output function & Learns a mapping between function spaces, for example an arbitrary initial field to a later solution field. \\
+\bottomrule
+\end{longtable}
+
+Module~4 uses a \textbf{coordinate network}. It is not an autoregressive time integrator: evaluation at time $t$ does not require the network prediction at an earlier time. It is also not a general neural operator because the initial condition is represented only through the finite parameter $A_0$, not supplied as an arbitrary function. Operator-learning architectures such as DeepONet or a Fourier neural operator may become relevant when the input includes general profiles, equilibria, or geometries \cite{Lu2021,Li2021}; they are outside the frozen first baseline.
+
+\subsection{What the network is really approximating}
+
+If the numerical solver and data pipeline were exact and deterministic, there would be a solution map
+\begin{equation}
+\mathcal{S}:(x,y,t,\vect{\mu})\mapsto(\psi,U).
+\end{equation}
+The trained network seeks
+\begin{equation}
+\mathcal{N}_{\vect{\theta}}\approx\mathcal{S}
+\end{equation}
+over a declared domain. In practice the targets also contain discretization and interpolation errors. It is more precise to say that the network approximates the \emph{verified discrete reference solution family} over the sampled parameter and time domain.
+
+\section{Anatomy of the simulation dataset}
+\label{sec:data}
+
+\subsection{Case, snapshot, grid point, and example}
+
+The following hierarchy prevents ambiguous use of the word ``sample.''
+
+\begin{definitionbox}
+A \textbf{case} is one complete simulation with a fixed parameter vector $\vect{\mu}_c=(\eta_c,\nu_c,A_{0,c})$ and fixed numerical metadata. A \textbf{snapshot} is the complete spatial field at one stored time $t_k$. A \textbf{grid point} is one spatial coordinate pair $(x_i,y_j)$. A \textbf{supervised example} pairs one network input with its target output.
+\end{definitionbox}
+
+For case $c$, suppose the data contain $N_x$ $x$ coordinates, $N_y$ $y$ coordinates, and $N_t$ stored times. The arrays may be represented as
+\begin{equation}
+\psi^{(c)}_{ijk}=\psi(x_i,y_j,t_k;\vect{\mu}_c),
+\qquad
+U^{(c)}_{ijk}=U(x_i,y_j,t_k;\vect{\mu}_c).
+\end{equation}
+If every stored point is used, one case contains
+\begin{equation}
+N_{\rm point}=N_xN_yN_t
+\end{equation}
+supervised examples. With $N_{\rm case}$ cases, the full point count is the sum over cases. This count can be very large even when the number of independent physical trajectories is modest.
+
+\subsection{Flattening arrays without erasing structure}
+
+To train a pointwise network, a selected array entry becomes
+\begin{align}
+\vect{s}^{(c,i,j,k)}
+&=(x_i,y_j,t_k,\eta_c,\nu_c,A_{0,c}),\\
+\vect{q}^{(c,i,j,k)}
+&=(\psi^{(c)}_{ijk},U^{(c)}_{ijk}).
+\end{align}
+These examples may be stored as rows of an input matrix and target matrix. Flattening is a storage and batching operation; it must not discard the case identifier, snapshot index, original coordinate indices, split assignment, or provenance. Those fields are needed for case-balanced losses and reconstruction of full evaluation grids.
+
+\subsection{Why point count is not independent-information count}
+
+Adjacent grid points within one smooth field are strongly correlated. Neighboring stored times are also correlated because they lie on the same trajectory. Therefore, $10^7$ point examples from ten cases do not provide the same diversity as $10^7$ examples from thousands of independent physical cases. Reporting only the number of points can exaggerate dataset breadth.
+
+A complete data report should include at least:
+\begin{itemize}
+  \item number of cases in each split;
+  \item the parameter values or parameter ranges in each split;
+  \item spatial resolution and stored-time resolution;
+  \item number of point observations actually used for training;
+  \item sampling strategy within cases; and
+  \item whether repeated points are resampled between epochs.
+\end{itemize}
+
+\subsection{Required metadata inherited from Module 3}
+
+Each case must preserve domain lengths $(L_x,L_y)$, coordinate arrays, time array, parameter vector, normalization, sign convention, initial and boundary conditions, solver version, discretization, diagnostic definitions, and split assignment. The training pipeline should reject a case with incompatible conventions rather than silently concatenate it.
+
+\begin{warningbox}
+Plot images are not field data. An image loses numerical precision, coordinates, normalization, field names, and usually the relationship between variables. It is useful for human inspection but is not an acceptable regression target.
+\end{warningbox}
+
+\section{Partitioning data and defining generalization}
+\label{sec:splits}
+
+\subsection{Training, validation, and test sets}
+
+The complete collection of cases is divided into three disjoint subsets.
+
+\begin{itemize}
+  \item The \textbf{training set} updates the neural parameters $\vect{\theta}$.
+  \item The \textbf{validation set} selects hyperparameters, training duration, architecture, and checkpoints.
+  \item The \textbf{test set} is used once the design is frozen to estimate final performance on unseen cases.
+\end{itemize}
+
+A \emph{hyperparameter} is a choice made outside ordinary gradient updates, such as width, depth, learning rate, weight decay, batch size, activation, or Fourier-feature scale. Choosing the best model after repeatedly inspecting test performance converts the test set into a validation set and produces an optimistically biased result.
+
+\subsection{The split unit must be a complete physical case}
+
+Let $\mathcal{C}_{\rm tr}$, $\mathcal{C}_{\rm va}$, and $\mathcal{C}_{\rm te}$ be disjoint sets of case identifiers:
+\begin{equation}
+\mathcal{C}_{\rm tr}\cap\mathcal{C}_{\rm va}=\varnothing,
+\quad
+\mathcal{C}_{\rm tr}\cap\mathcal{C}_{\rm te}=\varnothing,
+\quad
+\mathcal{C}_{\rm va}\cap\mathcal{C}_{\rm te}=\varnothing.
+\end{equation}
+All points and all stored times from a given parameter combination must remain in one partition for the principal parameter-generalization experiment.
+
+\begin{warningbox}[\,: random-point leakage]
+Randomly assigning points from every trajectory to training and test sets is not a valid test of unseen-case generalization. The network sees the same $(\eta,\nu,A_0)$ combination and neighboring points from the same numerical trajectory during training. It is then tested mainly on interpolation within an already observed solution.
+\end{warningbox}
+
+The correct ordering is:
+\begin{enumerate}[label=\arabic*.]
+  \item enumerate and validate complete cases;
+  \item assign whole cases to train, validation, and test partitions;
+  \item freeze the split manifest;
+  \item compute preprocessing statistics from training cases only; and
+  \item sample point observations within each already assigned partition.
+\end{enumerate}
+
+\subsection{Parameter interpolation and extrapolation}
+
+Suppose training covers $\eta\in[\eta_{\min},\eta_{\max}]$. A held-out $\eta$ strictly within this interval is an interpolation test in that coordinate, although the complete triplet $\vect{\mu}$ is unseen. A value outside the interval is an extrapolation test. In three parameter dimensions, the convex hull of the training parameter vectors gives a more careful geometric distinction: a test point inside that hull is supported by surrounding training cases, while a point outside requires extrapolation in at least one combined direction.
+
+The project should maintain separate interpolation and extrapolation test manifests. Averaging them into one score hides a physically important difference.
+
+\subsection{Temporal interpolation is not forecasting}
+
+If all training cases provide data over the full interval $0\le t\le T$, and a test case also lies in that time interval, the model is interpolating in the represented time domain even though the parameter combination is unseen. This is not evidence of forecasting beyond $T$.
+
+A temporal-extrapolation experiment must deliberately train only on $0\le t\le T_{\rm train}$ and evaluate at $t>T_{\rm train}$. This is difficult for a direct coordinate network and must be reported separately. A model can succeed in parameter interpolation yet fail in time extrapolation.
+
+\subsection{Spatial interpolation and resolution transfer}
+
+Evaluation at coordinates not present in the training point sample tests spatial interpolation. Evaluation on a denser grid is sometimes called super-resolution, but a coordinate network's ability to return values at more coordinates does not by itself prove more physical information has been recovered. The predictions must be compared with a higher-resolution reference calculation, and derivative-sensitive quantities must be checked.
+
+\section{Physical nondimensionalization and neural preprocessing}
+\label{sec:scaling}
+
+\subsection{Two different transformations}
+
+Module~1 converts dimensional variables to the dimensionless reduced-MHD system using physical reference scales such as $L_0$, $B_0$, and the Alfv\'en time. Module~4 may then transform the already dimensionless numbers to ranges that are easier for neural optimization.
+
+\begin{longtable}{p{0.24\textwidth}p{0.32\textwidth}p{0.34\textwidth}}
+\toprule
+Transformation & Purpose & Consequence \\
+\midrule
+\endfirsthead
+\toprule
+Transformation & Purpose & Consequence \\
+\midrule
+\endhead
+Physical nondimensionalization & Express the governing physics relative to meaningful reference scales. & Determines the dimensionless PDE coefficients and physical interpretation. \\
+Neural scaling or standardization & Improve numerical conditioning of learning inputs and outputs. & Changes the coordinates seen by the network; must be invertible and fitted only on training data. \\
+\bottomrule
+\end{longtable}
+
+\begin{warningbox}
+Neural scaling does not change the physical model. Conversely, setting every machine-learning input to order one does not automatically nondimensionalize the PDE. Module~5 derivatives must include the chain-rule factors associated with both transformations.
+\end{warningbox}
+
+\subsection{Affine standardization}
+
+For a scalar variable $a$, training-set standardization is
+\begin{equation}
+\widetilde a=\frac{a-m_a}{s_a},
+\label{eq:standardization}
+\end{equation}
+where $m_a$ is a location statistic, commonly the training mean, and $s_a>0$ is a scale statistic, commonly the training standard deviation. The tilde denotes a numerically transformed variable. The inverse is
+\begin{equation}
+a=m_a+s_a\widetilde a.
+\end{equation}
+For deterministic coordinates with known bounds, an affine map to $[-1,1]$ is also convenient:
+\begin{equation}
+\widetilde t=2\frac{t-t_{\min}}{t_{\max}-t_{\min}}-1.
+\end{equation}
+
+The statistics must be stored with the model. A predicted standardized output is not a physical field until the inverse transform has been applied.
+
+\subsection{Scaling positive transport coefficients}
+
+If $\eta$ and $\nu$ span several orders of magnitude and are sampled approximately logarithmically, it is often more natural to transform
+\begin{equation}
+r_\eta=\log_{10}\eta,
+\qquad
+r_\nu=\log_{10}\nu
+\end{equation}
+before affine scaling. Equal increments in $r_\eta$ then represent equal multiplicative changes in $\eta$. The logarithm is defined only for positive values; an ideal-limit case with $\eta=0$ requires a separate representation or a declared floor and cannot be silently passed through $\log_{10}$.
+
+The transformation must be chosen from the actual parameter design. A narrow linear range does not automatically benefit from a logarithm.
+
+\subsection{Output centering and scale balance}
+
+The magnitudes and variances of $\psi$ and $U$ may differ considerably. An unscaled sum of squared errors can then be dominated by the larger-amplitude field. The recommended primary baseline standardizes the two outputs separately using training-set statistics:
+\begin{equation}
+\widetilde\psi=\frac{\psi-m_\psi}{s_\psi},
+\qquad
+\widetilde U=\frac{U-m_U}{s_U}.
+\label{eq:outputscaling}
+\end{equation}
+The network predicts $(\widehat{\widetilde\psi},\widehat{\widetilde U})$, and physical dimensionless predictions are reconstructed as
+\begin{equation}
+\widehat\psi=m_\psi+s_\psi\widehat{\widetilde\psi},
+\qquad
+\widehat U=m_U+s_U\widehat{\widetilde U}.
+\end{equation}
+
+Global training statistics can underrepresent small-amplitude early dynamics or localized current sheets. This is a limitation to evaluate, not a reason to compute statistics from the test set. Alternative scale definitions may be compared on validation cases and then frozen.
+
+\subsection{Leakage-free preprocessing}
+
+Let $\mathcal{D}_{\rm tr}$ denote only the training observations. Every learned statistic must have the form
+\begin{equation}
+(m_a,s_a)=\operatorname{fitScale}(\mathcal{D}_{\rm tr}).
+\end{equation}
+The same stored values are then applied to validation and test inputs. Recomputing a mean or range separately on each held-out case gives the model information about that case and can make deployment requirements unrealistic.
+
+\subsection{Gauge and mean conventions}
+
+The project fixes the spatial mean of $U$ to zero. A constant shift in $U$ changes neither velocity nor vorticity, but it does change a direct $U$ regression loss. Every reference case must therefore use the same gauge. Likewise, the mean of $\psi$ must be recorded and kept consistent with the dataset convention. If cases use arbitrary additive offsets, the network wastes capacity learning nonphysical bookkeeping differences.
+
+\section{Representing the periodic spatial domain}
+\label{sec:periodic}
+
+\subsection{Why raw coordinates create an artificial seam}
+
+The domain is periodic:
+\begin{equation}
+(x,y)\in[0,L_x)\times[0,L_y).
+\end{equation}
+Physically, $x=0$ and $x=L_x$ describe the same location. Raw scalar coordinates represent them as far apart. A generic multilayer perceptron has no inherent knowledge that the endpoints must join.
+
+\subsection{Sine-cosine periodic encoding}
+
+Define phase angles
+\begin{equation}
+\phi_x=\frac{2\pi x}{L_x},
+\qquad
+\phi_y=\frac{2\pi y}{L_y}.
+\end{equation}
+The basic periodic feature map is
+\begin{equation}
+\vect{e}_{\rm per}(x,y)=
+\begin{bmatrix}
+\sin\phi_x & \cos\phi_x &
+\sin\phi_y & \cos\phi_y
+\end{bmatrix}^{\mathsf T}.
+\label{eq:periodicencoding}
+\end{equation}
+Because sine and cosine repeat every $2\pi$,
+\begin{equation}
+\vect{e}_{\rm per}(0,y)=\vect{e}_{\rm per}(L_x,y)
+\end{equation}
+and similarly in $y$. Any deterministic network of these features has equal endpoint values. This is a \emph{hard representation property}, not a penalty added to the loss.
+
+The recommended processed input is therefore
+\begin{equation}
+\vect{z}=
+\begin{bmatrix}
+\sin\phi_x,
+\cos\phi_x,
+\sin\phi_y,
+\cos\phi_y,
+\widetilde t,
+\widetilde r_\eta,
+\widetilde r_\nu,
+\widetilde A_0
+\end{bmatrix}^{\mathsf T},
+\label{eq:processedinput}
+\end{equation}
+with raw or logarithmic coefficient transforms selected and frozen as described in Section~\ref{sec:scaling}. Equation~\eqref{eq:processedinput} contains eight numerical components even though the physical input has six variables.
+
+\subsection{Value periodicity versus derivative periodicity}
+
+Smooth functions of the sine-cosine encoding are periodic together with their derivatives. However, numerical floating-point evaluation, non-smooth activations, or later implementation mistakes can still produce derivative artifacts. Periodic values and required derivatives should be verified explicitly on evaluation grids.
+
+\subsection{Higher harmonics and Fourier features}
+
+Thin current sheets and nonlinear structures contain higher spatial frequencies than a single sine-cosine pair. One deterministic extension uses harmonics
+\begin{equation}
+\sin(n\phi_x),\ \cos(n\phi_x),\
+\sin(n\phi_y),\ \cos(n\phi_y),
+\qquad n=1,\ldots,N_h.
+\end{equation}
+Random or learned Fourier-feature maps are another option and can reduce the tendency of coordinate multilayer perceptrons to learn low spatial frequencies first \cite{Tancik2020}. They also introduce a frequency-scale hyperparameter and can create overly oscillatory fits. The primary baseline should begin with the basic periodic encoding and treat richer features as a validation-selected ablation.
+
+\begin{practicebox}
+Periodic encoding is part of a competent baseline, not a physics-loss advantage reserved for the PINN. Module~4 and Module~5 should use the same coordinate representation unless the purpose of an explicit architecture ablation is stated.
+\end{practicebox}
+
+\section{The multilayer perceptron}
+\label{sec:network}
+
+\subsection{Neuron, layer, weight, and bias}
+
+A \emph{multilayer perceptron} (MLP) is a feedforward neural network made from repeated affine transformations and nonlinear activation functions. \emph{Feedforward} means information moves from input to output without a recurrent state loop.
+
+Let $\vect{h}^{(0)}=\vect{z}$ be the processed input. For hidden layer $\ell=1,\ldots,L$, define
+\begin{align}
+\vect{a}^{(\ell)}
+&=\mat{W}^{(\ell)}\vect{h}^{(\ell-1)}+\vect{b}^{(\ell)},
+\label{eq:affinelayer}\\
+\vect{h}^{(\ell)}
+&=\sigma\!\left(\vect{a}^{(\ell)}\right).
+\label{eq:activationlayer}
+\end{align}
+Here
+\begin{itemize}
+  \item $\mat{W}^{(\ell)}$ is a matrix of trainable \emph{weights};
+  \item $\vect{b}^{(\ell)}$ is a vector of trainable \emph{biases};
+  \item $\vect{a}^{(\ell)}$ is the pre-activation vector;
+  \item $\vect{h}^{(\ell)}$ is the hidden representation; and
+  \item $\sigma$ is applied component by component.
+\end{itemize}
+The output layer is usually linear for regression:
+\begin{equation}
+\widehat{\widetilde{\vect{q}}}
+=\mat{W}^{(L+1)}\vect{h}^{(L)}+\vect{b}^{(L+1)},
+\qquad
+\widehat{\widetilde{\vect{q}}}
+=
+\begin{bmatrix}
+\widehat{\widetilde\psi} & \widehat{\widetilde U}
+\end{bmatrix}^{\mathsf T}.
+\label{eq:outputlayer}
+\end{equation}
+
+\subsection{Why nonlinear activations are essential}
+
+If $\sigma(a)=a$ in every layer, composing layers produces another affine map. Depth would add no nonlinear expressive power. A nonlinear activation lets the network represent curved and interacting dependence on coordinates, time, and parameters.
+
+Common activations include
+\begin{align}
+\tanh(a)&=\frac{e^a-e^{-a}}{e^a+e^{-a}},\\
+\relu(a)&=\max(0,a),\\
+\operatorname{SiLU}(a)&=\frac{a}{1+e^{-a}},\\
+\sin(a)&=\text{sine activation used in some implicit representations}.
+\end{align}
+The hyperbolic tangent is smooth to all derivative orders and is therefore a natural default for the later PINN, which needs high-order derivatives. ReLU is continuous but its classical second derivative is zero away from its kink and undefined at the kink, making it unsuitable for a strong-form residual requiring Laplacians. To keep the architecture comparable across Modules~4 and~5, the primary baseline uses $\tanh$.
+
+\subsection{Depth, width, and capacity}
+
+The \emph{depth} is the number of hidden layers $L$. The \emph{width} $n_\ell$ is the number of units in layer $\ell$. \emph{Capacity} informally describes how rich a function class the architecture can express. Universal approximation results show that certain neural networks can approximate broad classes of continuous functions on compact domains, but these existence theorems do not guarantee efficient training, low data requirement, reliable derivatives, or extrapolation \cite{Cybenko1989}.
+
+If the processed input has dimension $n_0$, hidden widths are $n_1,\ldots,n_L$, and output dimension is $n_{L+1}=2$, the number of trainable scalar parameters is
+\begin{equation}
+N_\theta=
+\sum_{\ell=1}^{L+1}
+\left(n_\ell n_{\ell-1}+n_\ell\right).
+\label{eq:paramcount}
+\end{equation}
+The first term counts weights and the second counts biases.
+
+For an eight-component processed input, six hidden layers of width $128$, and two outputs,
+\begin{align}
+N_\theta
+&=(128\cdot8+128)
++5(128\cdot128+128)
++(2\cdot128+2)\\
+&=84{,}738.
+\end{align}
+The exact count should be logged automatically because architectural details can otherwise be described inconsistently.
+
+\subsection{Shared trunk and output heads}
+
+The simplest network uses a shared hidden representation and one two-component linear output. An alternative uses a shared \emph{trunk} followed by separate small \emph{heads} for $\psi$ and $U$. A shared trunk can learn common spatiotemporal features, while separate heads reduce direct competition between outputs. The head design is a hyperparameter; Module~4 and Module~5 should share it in the primary comparison.
+
+\subsection{Residual connections and normalization layers}
+
+A residual connection maps
+\begin{equation}
+\vect{h}^{(\ell+1)}
+=\vect{h}^{(\ell)}+F_\ell(\vect{h}^{(\ell)}),
+\end{equation}
+which can improve gradient flow in deeper networks. It is unrelated to a PDE residual despite the shared word ``residual.''
+
+Batch normalization makes predictions depend on batch statistics and can complicate deterministic coordinate derivatives. Dropout randomly masks activations during training and changes the effective function. Neither is necessary for the primary smooth coordinate-network baseline. Their use would require careful train/evaluation handling and a fair counterpart in Module~5.
+
+\subsection{Weight initialization}
+
+Training begins from random weights. If their variance is too large, activations and gradients can explode or saturate; if too small, signals can vanish. Xavier or Glorot initialization scales weights using input and output widths and is a standard choice for tanh networks \cite{Glorot2010}. Random seeds must be recorded, but one seed is not evidence of robustness.
+
+\section{Forward prediction as an implicit field representation}
+\label{sec:forward}
+
+\subsection{One point}
+
+Given $(x,y,t,\eta,\nu,A_0)$:
+\begin{enumerate}[label=\arabic*.]
+  \item validate that the values lie in the declared deployment domain;
+  \item construct periodic spatial features;
+  \item apply stored input transforms;
+  \item evaluate the network equations layer by layer;
+  \item invert output standardization; and
+  \item return $(\widehat\psi,\widehat U)$ with metadata identifying the model and convention.
+\end{enumerate}
+
+\subsection{A full field snapshot}
+
+To reconstruct a snapshot at fixed $(t,\vect{\mu})$, evaluate the network at every desired $(x_i,y_j)$ and reshape the predictions into $N_x\times N_y$ arrays. This operation is parallel across points. A full trajectory repeats it for multiple times.
+
+The coordinate network does not store a mesh internally. Nevertheless, the cost of producing a full field scales with the number of queried coordinates. Reporting only the cost of one point prediction is therefore misleading when the reference task requires a complete field.
+
+\subsection{Parameter conditioning}
+
+Because $\eta$, $\nu$, and $A_0$ enter every point from a case, the network must learn how the spatial-temporal field changes with these case-level inputs. If there are few distinct cases, the network may memorize their parameter labels rather than learn smooth dependence. Dense point sampling cannot compensate completely for sparse coverage of parameter space.
+
+\subsection{Spectral bias}
+
+Coordinate MLPs trained by gradient descent often fit low-frequency components before high-frequency components. This tendency is called \emph{spectral bias} or \emph{frequency bias}. In island coalescence, broad flux structures may therefore be learned before a thin current sheet. Fourier features, adaptive sampling, and architecture changes may help, but each changes the experimental design. Derived-current error is an especially sensitive indicator.
+
+\section{The strict data-only objective}
+\label{sec:loss}
+
+\subsection{Pointwise error}
+
+For supervised example $n$, define standardized errors
+\begin{equation}
+e_{\psi,n}=\widehat{\widetilde\psi}_n-\widetilde\psi_n,
+\qquad
+e_{U,n}=\widehat{\widetilde U}_n-\widetilde U_n.
+\end{equation}
+The mean squared error over a set $\mathcal{B}$ of $N_\mathcal{B}$ examples is
+\begin{equation}
+\MSE_a(\mathcal{B})
+=\frac{1}{N_\mathcal{B}}
+\sum_{n\in\mathcal{B}}e_{a,n}^2,
+\qquad a\in\{\psi,U\}.
+\label{eq:channelmse}
+\end{equation}
+
+\subsection{Channel-balanced data loss}
+
+The primary value-only objective is
+\begin{equation}
+\boxed{
+\Ldata
+=\lambda_\psi\MSE_\psi
++\lambda_U\MSE_U,}
+\label{eq:dataloss}
+\end{equation}
+with $\lambda_\psi=\lambda_U=1$ after separate output standardization. Equal weights then give the two standardized fields equal explicit importance. If different weights are used, their selection and physical consequence must be reported.
+
+The strict Module~4 training objective is
+\begin{equation}
+\boxed{\Ltrain=\Ldata.}
+\label{eq:strictobjective}
+\end{equation}
+There is no $\mathcal{L}_{\rm PDE}$, $\mathcal{L}_{\rm IC}$, $\mathcal{L}_{\rm BC}$, or $\mathcal{L}_{\rm global}$ term.
+
+\subsection{Case-balanced empirical risk}
+
+If case $c$ contributes $N_c$ points, a simple global point average weights that case in proportion to $N_c$. This is undesirable when different cases have different saved resolutions or sampling densities. A case-balanced loss first averages within each selected case and then across cases:
+\begin{equation}
+\Ldata
+=\frac{1}{|\mathcal{C}_{\mathcal B}|}
+\sum_{c\in\mathcal{C}_{\mathcal B}}
+\left[
+\lambda_\psi\frac{1}{N_c}\sum_{n\in c}e_{\psi,n}^2
++
+\lambda_U\frac{1}{N_c}\sum_{n\in c}e_{U,n}^2
+\right],
+\label{eq:casebalanced}
+\end{equation}
+where $\mathcal{C}_{\mathcal B}$ is the set of cases represented in the batch. A hierarchical batch sampler can select cases uniformly and then select points uniformly within each chosen case.
+
+\subsection{Why squared error is reasonable and limited}
+
+Mean squared error penalizes large errors strongly, is differentiable, and corresponds to maximum likelihood under an independent Gaussian error model with constant variance. Solver samples are not truly independent Gaussian measurements, so this probabilistic interpretation is only an approximation. MSE can also underweight localized structures occupying a small fraction of the domain.
+
+Mean absolute error,
+\begin{equation}
+\MAE_a=\frac{1}{N}\sum_{n=1}^N|e_{a,n}|,
+\end{equation}
+is less sensitive to large outliers but has a non-differentiable point at zero. A Huber loss transitions between squared and absolute behavior. These are validation-selected alternatives, not reasons to change the primary baseline after observing test results.
+
+\subsection{Are gradient or spectral losses still data-only?}
+
+A loss comparing predicted gradients to gradients computed from reference data uses no PDE and is therefore data-supervised in a broad sense. A spectral loss comparing Fourier coefficients is also data-supervised. However, either provides more information per observation than the strict point-value loss and changes the comparison with Module~5. They should be labeled as separate enhanced-data baselines, with the primary baseline retained.
+
+\begin{conventionbox}
+The primary Module~4 loss uses only observed values of $\psi$ and $U$. No target $J$, target $\omega$, spatial-gradient target, Fourier-coefficient target, PDE residual, initial-condition residual, boundary residual, or energy residual updates the network.
+\end{conventionbox}
+
+\subsection{Regularization is not physical information}
+
+Weight decay adds
+\begin{equation}
+\mathcal{L}_{\rm wd}=\alpha\sum_k\theta_k^2
+\end{equation}
+or applies an equivalent decoupled parameter shrinkage. This is a numerical or statistical regularizer, not an MHD constraint. If used, $\alpha$ must be chosen on validation cases and matched or explicitly accounted for in Module~5.
+
+\section{Backpropagation and optimization}
+\label{sec:optimization}
+
+\subsection{What training changes}
+
+The loss is a scalar function of all trainable parameters:
+\begin{equation}
+\Ltrain=\Ltrain(\vect{\theta}).
+\end{equation}
+The gradient
+\begin{equation}
+\nabla_{\vect{\theta}}\Ltrain
+=
+\begin{bmatrix}
+\pd\Ltrain/\pd\theta_1 & \cdots &
+\pd\Ltrain/\pd\theta_{N_\theta}
+\end{bmatrix}^{\mathsf T}
+\end{equation}
+points in the direction of greatest local increase. Gradient descent takes a step in the opposite direction:
+\begin{equation}
+\vect{\theta}_{k+1}
+=\vect{\theta}_k
+-\alpha_k\nabla_{\vect{\theta}}\Ltrain(\vect{\theta}_k),
+\label{eq:gd}
+\end{equation}
+where $\alpha_k>0$ is the learning rate at update $k$.
+
+\subsection{Backpropagation}
+
+\emph{Backpropagation} is an efficient application of the chain rule through the network's computational graph. It propagates the sensitivity of the loss from the outputs backward through each layer to all weights and biases. Backpropagation is not itself an optimizer; it computes derivatives used by an optimizer.
+
+For a scalar chain $z\mapsto a\mapsto h\mapsto\mathcal{L}$,
+\begin{equation}
+\frac{\pd\mathcal{L}}{\pd z}
+=\frac{\pd\mathcal{L}}{\pd h}
+\frac{\pd h}{\pd a}
+\frac{\pd a}{\pd z}.
+\end{equation}
+The matrix-valued network uses the same principle with Jacobians and vector-Jacobian products. Modern frameworks perform this calculation by automatic differentiation.
+
+\subsection{Full-batch, stochastic, and mini-batch gradients}
+
+A full-batch update uses every training point, which may be prohibitively expensive. Stochastic gradient descent uses one randomly selected example. Mini-batch training uses a subset and estimates the full gradient:
+\begin{equation}
+\vect{g}_{\mathcal B}
+=\nabla_{\vect{\theta}}\mathcal{L}_{\mathcal B}.
+\end{equation}
+The estimate is noisy, but many inexpensive updates can be effective. For correlated field data, hierarchical selection of cases, times, and points provides better control than treating all flattened rows as exchangeable.
+
+\subsection{Batch, update, and epoch}
+
+\begin{itemize}
+  \item A \textbf{batch} is the set of examples used in one gradient evaluation.
+  \item An \textbf{update} changes the parameters once.
+  \item An \textbf{epoch} conventionally means enough batches to process approximately one pass through a fixed training set.
+\end{itemize}
+If points are sampled continuously or resampled from large arrays, ``epoch'' may be ambiguous. The project should record the exact number of optimizer updates and examples processed in addition to any epoch count.
+
+\subsection{The Adam optimizer}
+
+Adam maintains exponentially weighted estimates of the first and second moments of the gradient \cite{Kingma2015}. In simplified componentwise form,
+\begin{align}
+\vect{m}_k&=\beta_1\vect{m}_{k-1}+(1-\beta_1)\vect{g}_k,\\
+\vect{v}_k&=\beta_2\vect{v}_{k-1}+(1-\beta_2)\vect{g}_k\odot\vect{g}_k,
+\end{align}
+where $\odot$ denotes elementwise multiplication. Bias-corrected estimates $\widehat{\vect{m}}_k$ and $\widehat{\vect{v}}_k$ are used in
+\begin{equation}
+\vect{\theta}_{k+1}
+=\vect{\theta}_k
+-\alpha\frac{\widehat{\vect{m}}_k}
+{\sqrt{\widehat{\vect{v}}_k}+\epsilon},
+\end{equation}
+with division, square root, and addition applied componentwise. Adam is a practical default, not a guarantee of reaching the best minimum.
+
+\subsection{Learning-rate schedules}
+
+If the learning rate is too large, loss may oscillate or diverge. If too small, training can stagnate. A schedule may reduce $\alpha$ after a fixed number of updates, after validation stagnation, or according to a smooth cosine curve. The schedule and trigger must be logged. Changing it based on the test set is leakage.
+
+\subsection{Early stopping and checkpoints}
+
+Training loss often continues decreasing after validation error begins increasing. This is \emph{overfitting}. Early stopping saves the parameter state with the best declared validation metric and stops after a patience interval without improvement. The final test must use that frozen checkpoint, not the last update or the test-optimal update.
+
+\subsection{Randomness and repeated training}
+
+Random initialization, batch order, and possibly accelerator operations cause run-to-run variation. At least several independent seeds should be trained for the final comparison. Report mean, spread, and individual failures rather than only the best seed. The same seed values should be paired across Module~4 and Module~5 where technically meaningful.
+
+\section{Sampling observations from the training cases}
+\label{sec:sampling}
+
+\subsection{Why not train on every stored point at every update?}
+
+A $128\times128$ grid with 101 stored times contains about $1.65$ million points per case. A parameter sweep can therefore contain tens or hundreds of millions of point records. Mini-batch sampling reduces memory use and enables controlled data-budget experiments.
+
+\subsection{Hierarchical sampling}
+
+A defensible batch can be constructed by:
+\begin{enumerate}[label=\arabic*.]
+  \item selecting $B_c$ training cases uniformly;
+  \item selecting $B_t$ stored times within each case;
+  \item selecting $B_s$ spatial coordinates within each selected snapshot; and
+  \item returning $B_cB_tB_s$ point examples.
+\end{enumerate}
+This makes the unit of physical diversity explicit. Sampling all points from one case for many updates can produce highly correlated gradients and temporarily neglect other parameter combinations.
+
+\subsection{Uniform and structure-aware sampling}
+
+Uniform spatial sampling estimates domain-average point error. It can miss a thin current sheet because the sheet occupies little area. A mixture distribution may combine uniform points with points drawn from regions of high reference $|J|$, large field gradient, or reconnection activity.
+
+Structure-aware sampling uses reference-derived information and therefore changes the information supplied to the learner. It remains data-only if no PDE residual is used, but it must be applied identically to Module~4 and the data term of Module~5 for a fair comparison. Evaluation must remain on an unbiased full grid, and importance weights are needed if the training loss is intended to estimate a uniform-domain risk.
+
+\subsection{Time sampling}
+
+Uniform sampling over stored times may overrepresent slowly varying phases if the output cadence is uniform but the event of interest is brief. Alternatives include stratification into early, reconnection, and late-time windows. Any event-aware definition must be computed from training cases and frozen before test evaluation.
+
+\subsection{Data budget has several meanings}
+
+``Ten thousand training points'' is incomplete. Data budget can refer to:
+\begin{itemize}
+  \item number of independently simulated parameter cases;
+  \item number of observed snapshots per case;
+  \item number of observed spatial points per snapshot;
+  \item number of output channels observed; and
+  \item total reference-solver cost required to produce those observations.
+\end{itemize}
+The project should vary at least the number of training cases and the number of point observations per case. Physics information may help in one scarcity regime but not another.
+
+\section{Hyperparameters and model selection}
+\label{sec:hyperparameters}
+
+\subsection{Trainable parameters versus hyperparameters}
+
+Weights and biases are trainable parameters updated by backpropagation. Width, depth, activation, batch size, learning rate, sampling mixture, output scaling, and early-stopping patience are hyperparameters selected outside those updates.
+
+\subsection{A staged tuning strategy}
+
+An efficient, scientifically controlled sequence is:
+\begin{enumerate}[label=\arabic*.]
+  \item verify data loading and inverse transforms on a tiny subset;
+  \item overfit one snapshot to confirm network and loss correctness;
+  \item overfit one complete case to confirm time and coordinate handling;
+  \item train a small multi-case model and inspect validation behavior;
+  \item tune a limited predeclared set of architecture and optimization choices;
+  \item freeze the configuration; and
+  \item train repeated seeds and evaluate the untouched test cases.
+\end{enumerate}
+The ability to overfit a tiny dataset is a debugging test, not evidence of generalization.
+
+\subsection{Validation metric selection}
+
+Selecting checkpoints solely by standardized $\psi/U$ MSE may favor broad smooth structures and neglect current sheets. A predeclared validation score can combine primary-field relative errors and derived-field diagnostics. However, if a derived-current score determines model selection, it has influenced training decisions even if it is absent from gradient updates. That is acceptable for the baseline, but it must be disclosed and applied consistently to Module~5.
+
+\subsection{Search budget fairness}
+
+One method should not receive vastly more manual tuning than the other. Report the hyperparameter search space, number of trials, selection rule, and total compute. Fairness does not require identical optimal hyperparameters, but it does require comparable opportunity and transparent accounting.
+
+\section{Evaluation on complete unseen fields}
+\label{sec:evaluation}
+
+\subsection{Why training loss is not the final metric}
+
+Training loss measures fit to observed training points in transformed units. Scientific performance concerns physical dimensionless fields on complete held-out cases. Predictions must be inverse-transformed and evaluated on full grids and times that include points not used as observations.
+
+\subsection{Absolute error fields}
+
+For field $a\in\{\psi,U,J,\omega\}$,
+\begin{equation}
+e_a(x,y,t;\vect{\mu})=\widehat a-a.
+\end{equation}
+Plotting $e_a$ with a symmetric color scale reveals where the surrogate differs. Error plots must accompany predicted contours because visually similar fields can have structured phase or amplitude errors.
+
+\subsection{Discrete norms}
+
+On an evaluation grid with $N$ points, define
+\begin{align}
+\|e_a\|_2
+&=\left(\sum_{n=1}^N e_{a,n}^2\right)^{1/2},\\
+\|e_a\|_\infty
+&=\max_{1\le n\le N}|e_{a,n}|.
+\end{align}
+The relative $L_2$ error is
+\begin{equation}
+\epsilon_{2,a}
+=\frac{\|\widehat{\vect{a}}-\vect{a}\|_2}
+{\|\vect{a}\|_2+\epsilon_{\rm floor}},
+\label{eq:relativeL2}
+\end{equation}
+where $\epsilon_{\rm floor}$ prevents division by zero. The floor must be declared; otherwise relative error becomes arbitrarily large when the true field norm is near zero.
+
+The root mean squared error is
+\begin{equation}
+\RMSE_a=\sqrt{\frac{1}{N}\sum_{n=1}^N e_{a,n}^2}.
+\end{equation}
+Report both dimensional-status-aware absolute metrics and relative metrics. A small relative error in a dominant background can coexist with a large error in a physically important perturbation.
+
+\subsection{Per-case and aggregate reporting}
+
+Compute metrics separately for every held-out case and time. Then report median, mean, quantiles, and worst case across cases. Pooling all points before computing one metric weights larger cases more heavily and can hide complete failure on one parameter combination.
+
+\subsection{Time-resolved error}
+
+For case $c$, define
+\begin{equation}
+\epsilon_{2,a}^{(c)}(t_k)
+=\frac{\|\widehat a^{(c)}(\cdot,\cdot,t_k)-a^{(c)}(\cdot,\cdot,t_k)\|_2}
+{\|a^{(c)}(\cdot,\cdot,t_k)\|_2+\epsilon_{\rm floor}}.
+\end{equation}
+This curve distinguishes an early-time fit from failure near current-sheet formation or late-time decay. A single time-averaged number cannot show when the model loses fidelity.
+
+\subsection{Phase error versus amplitude error}
+
+A slight spatial displacement of a narrow structure can produce large pointwise error even when its amplitude and shape are reasonable. Conversely, a blurred structure can have moderate MSE while missing the correct peak. Report peak location, peak magnitude, and physically defined reconnection diagnostics in addition to field norms.
+
+\section{Physical diagnostics that do not train Module 4}
+\label{sec:diagnostics}
+
+\subsection{The distinction between loss and diagnostic}
+
+A \emph{loss term} contributes a gradient that changes $\vect{\theta}$. A \emph{diagnostic} is computed for analysis after or between training updates but does not contribute to those updates. The same mathematical quantity can serve either role depending on how it is used.
+
+This distinction allows Module~4 to be evaluated physically without becoming physics-informed.
+
+\subsection{Derived current and vorticity}
+
+For a smooth coordinate network, automatic differentiation can compute
+\begin{equation}
+\widehat J
+=-\left(\frac{\pd^2\widehat\psi}{\pd x^2}
++\frac{\pd^2\widehat\psi}{\pd y^2}\right),
+\qquad
+\widehat\omega
+=\frac{\pd^2\widehat U}{\pd x^2}
++\frac{\pd^2\widehat U}{\pd y^2}.
+\label{eq:adderived}
+\end{equation}
+The derivatives must be with respect to physical dimensionless $x$ and $y$, including all periodic-encoding and output-scaling chain rules. A useful cross-check computes derivatives both by automatic differentiation and by the same spectral differentiation applied to network predictions on a uniform grid.
+
+\subsection{Magnetic and kinetic energies}
+
+With the Module~1 convention,
+\begin{align}
+E_B(t)&=\frac12\int_\Omega|\nabla\psi|^2\,\dd A,\\
+E_K(t)&=\frac12\int_\Omega|\nabla U|^2\,\dd A.
+\end{align}
+Compute predicted histories $\widehat E_B$ and $\widehat E_K$ from predicted fields and compare them with reference histories. Energy agreement tests global field gradients and is not guaranteed by pointwise value MSE.
+
+\subsection{Peak current and reconnection quantities}
+
+Current-sheet fidelity can be measured by
+\begin{equation}
+J_{\max}(t)=\max_{(x,y)\in\Omega}|J(x,y,t)|.
+\end{equation}
+Report relative peak error and location error. Reconnected flux and reconnection rate must use the versioned O-point/X-point definition established by Modules~2 and~6. A surrogate should not be credited for visual island formation if these quantitative histories are wrong.
+
+\subsection{Periodicity defects}
+
+For a field $a$, value mismatch across the $x$ boundary may be summarized as
+\begin{equation}
+\epsilon_{\rm per,x}^{(a)}(t)
+=\frac{\|a(0,\cdot,t)-a(L_x,\cdot,t)\|_2}
+{\|a(0,\cdot,t)\|_2+\epsilon_{\rm floor}},
+\end{equation}
+with analogous $y$ and derivative defects. The sine-cosine representation should make value mismatch very small by construction, so a large defect indicates an implementation error.
+
+\subsection{PDE residuals as evaluation-only quantities}
+
+The frozen reduced-MHD residuals are
+\begin{align}
+\Rpsi
+&=\pd_t\widehat\psi
++\bracket{\widehat U}{\widehat\psi}
+-\eta\nabla^2\widehat\psi,
+\label{eq:diagnosticrpsi}\\
+\Romega
+&=\pd_t\widehat\omega
++\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}
+-\nu\nabla^2\widehat\omega.
+\label{eq:diagnosticromega}
+\end{align}
+The Poisson bracket is
+\begin{equation}
+\bracket{f}{g}=f_xg_y-f_yg_x.
+\end{equation}
+Computing these residuals after training measures whether data fit happens to yield a PDE-consistent continuous field. They must not be backpropagated into the Module~4 model.
+
+Residual magnitude depends on normalization, derivative order, and evaluation distribution. Report a dimensionless or term-normalized residual together with the raw residual and the magnitudes of the individual PDE terms. A small cancellation-based residual can otherwise be misread.
+
+\subsection{Energy-balance defect}
+
+For the unforced periodic system, Module~1 gives
+\begin{equation}
+\frac{\dd}{\dd t}(E_B+E_K)
+=-\eta\int_\Omega J^2\,\dd A
+-\nu\int_\Omega\omega^2\,\dd A.
+\end{equation}
+Define the predicted balance defect
+\begin{equation}
+\mathcal{D}_E(t)
+=\frac{\dd}{\dd t}(\widehat E_B+\widehat E_K)
++\eta\int_\Omega\widehat J^2\,\dd A
++\nu\int_\Omega\widehat\omega^2\,\dd A.
+\end{equation}
+Again, this is a diagnostic in Module~4 and an optional training constraint only in Module~5.
+
+\begin{checkpointbox}
+A data-only network can have low field MSE and large PDE or energy-balance defects. That observation is not an inconsistency in the experiment; it is precisely one of the phenomena that the Module~4 versus Module~5 comparison is designed to measure.
+\end{checkpointbox}
+
+\section{Data efficiency and learning curves}
+\label{sec:dataefficiency}
+
+\subsection{What data efficiency means}
+
+A model is more data-efficient if it reaches a specified generalization performance using fewer observed data, holding relevant conditions fixed. Because data have hierarchical structure, efficiency must be plotted against more than one budget axis.
+
+Recommended experiments include:
+\begin{enumerate}[label=\arabic*.]
+  \item fix points per case and vary the number of training cases;
+  \item fix the case set and vary observed snapshots per case;
+  \item fix cases and snapshots and vary spatial points per snapshot; and
+  \item compare uniform sampling with a declared structure-aware mixture.
+\end{enumerate}
+
+For budget $B$, train repeated random seeds and evaluate the same fixed validation or test cases. A learning curve plots a metric such as median held-out relative $L_2$ error against $B$, preferably on logarithmic axes when budgets span orders of magnitude.
+
+\subsection{Reference-generation cost matters}
+
+If one complete numerical trajectory must be run before any points from that case are available, then reducing point observations may not reduce solver cost. Distinguish stored-data volume from expensive simulation-case count. The project should report both.
+
+\subsection{No single accuracy threshold is universal}
+
+The significance of a field error depends on downstream use. A model used for qualitative visualization can tolerate errors that would be unacceptable for peak-current prediction or stability thresholds. Data-efficiency claims must name the metric and target threshold.
+
+\section{Overfitting, underfitting, and generalization failure}
+\label{sec:failure}
+
+\subsection{Underfitting}
+
+Underfitting occurs when the model cannot fit even the training data adequately. Possible causes include insufficient capacity, poor scaling, an overly strong regularizer, inadequate optimization, or input features incapable of representing periodic or high-frequency structure.
+
+Typical evidence is high training and validation error that plateau together. Increasing width or training duration may help, but only after verifying the pipeline.
+
+\subsection{Overfitting}
+
+Overfitting occurs when training error is small but held-out error remains large or worsens. The model has adapted to peculiarities of the observed examples that do not transfer. More independent cases, regularization, early stopping, or a more appropriate inductive bias may help.
+
+\subsection{Parameter memorization}
+
+When only a few discrete parameter combinations are present, a high-capacity network can behave like a collection of case-specific fits keyed by $(\eta,\nu,A_0)$. Good reconstruction on random held-out points from those same cases does not reveal this. Whole-case tests do.
+
+\subsection{Loss domination by easy regions}
+
+Most domain points may lie far from a thin current sheet. A low uniform MSE can therefore coexist with poor reconnection dynamics. Derived-field metrics and stratified error reports expose this. Changing sampling can help, but must remain controlled across models.
+
+\subsection{Gauge contamination}
+
+If $U$ has arbitrary case-dependent constant offsets, a direct regression loss treats those offsets as real signal. The model can have high $U$ error while predicting velocity accurately, or low $U$ error by learning irrelevant offsets. Freeze $\average{U}=0$ before training.
+
+\subsection{Boundary seam artifacts}
+
+Raw coordinate inputs may fit both sides of a periodic boundary separately and create a seam. Periodic encoding prevents the most direct value mismatch and should be verified with derivative checks.
+
+\subsection{Derivative amplification}
+
+Suppose the prediction error contains a Fourier component
+\begin{equation}
+e_\psi=\epsilon\cos(k_xx).
+\end{equation}
+Its amplitude is $\epsilon$, but its contribution to current error is
+\begin{equation}
+e_J=-\nabla^2e_\psi=\epsilon k_x^2\cos(k_xx).
+\end{equation}
+The curvature error grows as $k_x^2$. This explains how a small high-frequency flux error can dominate current error.
+
+\subsection{Distribution shift}
+
+A test case may differ from training not only in parameter values but also in grid, output cadence, numerical solver version, normalization, initial-condition formula, or physical regime. Some shifts are desired tests; others are schema incompatibilities. The manifest must distinguish them.
+
+\subsection{Optimization failure masquerading as model failure}
+
+A poor seed, unstable learning rate, or saturated activation can make one run fail. Repeated seeds and training-curve inspection separate optimization reliability from representational limitation.
+
+\subsection{Visual plausibility}
+
+Contour plots are necessary but not sufficient. Color normalization can hide amplitude errors; broad structures can conceal high-frequency noise; and a misplaced current sheet can still look qualitatively reasonable. Every visual comparison must be paired with quantitative metrics and identical color ranges.
+
+\section{Fair comparison with the Module 5 PINN}
+\label{sec:fairness}
+
+\subsection{What should be held fixed}
+
+The primary comparison should hold fixed:
+\begin{itemize}
+  \item training, validation, and test case manifests;
+  \item observed $\psi/U$ points and data budgets;
+  \item input and output transformations;
+  \item periodic coordinate encoding;
+  \item architecture family and approximately the same parameter count;
+  \item initialization scheme and repeated seed set;
+  \item data-loss definition and data-batch sampler;
+  \item validation metrics and final evaluation grids; and
+  \item reporting format.
+\end{itemize}
+Module~5 then adds collocation points and physics losses. It may require different optimizer settings because the objective is harder, but those differences and their tuning budgets must be reported.
+
+\subsection{Three distinct notions of fairness}
+
+No single control makes every comparison fair.
+
+\begin{longtable}{p{0.23\textwidth}p{0.31\textwidth}p{0.36\textwidth}}
+\toprule
+Fairness axis & Held equal & Scientific question \\
+\midrule
+\endfirsthead
+\toprule
+Fairness axis & Held equal & Scientific question \\
+\midrule
+\endhead
+Observed-data fairness & Number and identity of labeled field observations & Does physics reduce dependence on labeled simulation values? \\
+Architecture fairness & Network family and parameter count & Does the loss information help without extra representational capacity? \\
+Compute fairness & Wall time, updates, or accelerator budget & Which method performs better for a fixed computational investment? \\
+\bottomrule
+\end{longtable}
+
+The primary scientific comparison should prioritize equal labeled data and comparable architecture. Compute must still be reported because automatic differentiation of high-order PDE residuals can be expensive. A secondary compute-matched comparison is valuable.
+
+\subsection{Matched observation budgets}
+
+For every data budget $B$, construct one immutable observation index list. Both models receive exactly those target values. The PINN may additionally receive unlabeled collocation coordinates, but the number and sampling of those coordinates must be logged. Otherwise, it is unclear whether improvement arose from physics or simply from evaluating many more locations.
+
+\subsection{Ablation ladder}
+
+A clean experiment grows the Module~4 objective in stages:
+\begin{align}
+\text{A: }&\Ldata,\\
+\text{B: }&\Ldata+w_{\rm PDE}\mathcal{L}_{\rm PDE},\\
+\text{C: }&\Ldata+w_{\rm PDE}\mathcal{L}_{\rm PDE}
++w_{\rm IC}\mathcal{L}_{\rm IC},\\
+\text{D: }&\Ldata+w_{\rm PDE}\mathcal{L}_{\rm PDE}
++w_{\rm IC}\mathcal{L}_{\rm IC}
++w_{\rm BC}\mathcal{L}_{\rm BC},\\
+\text{E: }&\text{D}+w_{\rm global}\mathcal{L}_{\rm global}.
+\end{align}
+This ladder identifies which information source changes performance. Module~4 is model A; models B--E belong to Module~5.
+
+\subsection{What would count as evidence that physics helped?}
+
+Evidence includes statistically consistent improvement over repeated seeds on predeclared held-out cases, especially at reduced labeled-data budgets, together with improved physical diagnostics and transparent compute cost. One favorable contour or one best seed is insufficient.
+
+\section{Recommended primary baseline specification}
+\label{sec:specification}
+
+The following is a defensible starting configuration, not a claim that it is universally optimal.
+
+\begin{conventionbox}[\,: version-1 Module 4 baseline]
+\begin{itemize}
+  \item \textbf{Physical map:} $(x,y,t,\eta,\nu,A_0)\mapsto(\widehat\psi,\widehat U)$.
+  \item \textbf{Spatial representation:} sine-cosine periodic encoding in $x$ and $y$.
+  \item \textbf{Other inputs:} affine scaling of $t$ and $A_0$; use $\log_{10}\eta$ and $\log_{10}\nu$ only if the parameter design spans positive orders of magnitude, otherwise scale raw coefficients.
+  \item \textbf{Outputs:} separate training-set standardization of $\psi$ and $U$; inverse-transform before scientific evaluation.
+  \item \textbf{Architecture:} fully connected MLP with six hidden layers, width 128, tanh activation, and a linear two-output head.
+  \item \textbf{Initialization:} Xavier/Glorot initialization appropriate to tanh.
+  \item \textbf{Training loss:} case-balanced sum of standardized $\psi$ and $U$ MSE with equal channel weights.
+  \item \textbf{Forbidden training terms:} PDE, IC, BC, global balance, $J$, $\omega$, derivative, and spectral target losses.
+  \item \textbf{Optimizer:} Adam with a validation-selected learning-rate schedule and optional validation-selected weight decay.
+  \item \textbf{Batches:} hierarchical case-time-space sampling.
+  \item \textbf{Splits:} immutable whole-case train/validation/test manifests, with interpolation and extrapolation test groups separated.
+  \item \textbf{Selection:} best checkpoint by a predeclared validation score; test set untouched until configuration freeze.
+  \item \textbf{Replicates:} multiple documented random seeds.
+  \item \textbf{Evaluation:} complete-grid fields, derived $J/\omega$, energies, peak current, reconnection diagnostics, periodicity, and evaluation-only PDE residuals.
+\end{itemize}
+\end{conventionbox}
+
+\subsection{Why this is only a starting point}
+
+The correct width and depth depend on the verified solution complexity and parameter sweep. The configuration must first pass small-data debugging, then be tuned on validation cases. The frozen comparison configuration should be written to a version-controlled file rather than existing only in a notebook or command history.
+
+\subsection{Suggested controlled ablations}
+
+After the primary baseline is frozen, useful one-change-at-a-time studies include:
+\begin{itemize}
+  \item raw coordinates versus periodic encoding;
+  \item basic periodic encoding versus higher Fourier harmonics;
+  \item shared output layer versus separate output heads;
+  \item tanh versus another smooth activation;
+  \item uniform versus structure-aware data sampling;
+  \item unscaled versus separately standardized outputs; and
+  \item strict value-only loss versus an explicitly labeled derivative-data baseline.
+\end{itemize}
+These studies should not be mixed indiscriminately into the PINN comparison.
+
+\section{Worked miniature example}
+\label{sec:worked}
+
+\subsection{A simple decaying magnetic mode}
+
+Module~1 introduced the exact solution
+\begin{equation}
+\psi(x,y,t;\eta,A)
+=A e^{-\eta(k_x^2+k_y^2)t}
+\cos(k_xx)\cos(k_yy),
+\qquad U=0.
+\label{eq:decaymode}
+\end{equation}
+Although this is much simpler than island coalescence, it illustrates the complete supervised map. Take $\nu$ as an inactive input and $A_0=A$. Each example is
+\begin{align}
+\vect{s}_n&=(x_n,y_n,t_n,\eta_n,\nu_n,A_n),\\
+\vect{q}_n&=(\psi_n,0).
+\end{align}
+The network is not given the exponential or cosine formula. It observes values at selected combinations and minimizes Eq.~\eqref{eq:dataloss}.
+
+\subsection{What different tests mean}
+
+If the network is trained at $\eta\in\{10^{-3},3\times10^{-3}\}$ and tested at $2\times10^{-3}$, it tests interpolation in $\eta$. Testing at $10^{-2}$ is extrapolation. If training includes $0\le t\le5$ and testing uses unused points within that interval, it tests time interpolation. Testing at $t=8$ tests temporal extrapolation.
+
+\subsection{Why the PDE diagnostic can fail despite a good fit}
+
+The exact solution satisfies
+\begin{equation}
+\pd_t\psi-\eta\nabla^2\psi=0.
+\end{equation}
+Suppose a data-only prediction adds a small high-frequency error:
+\begin{equation}
+\widehat\psi=\psi+\epsilon\sin(Kx)\sin(Ky).
+\end{equation}
+The value error is order $\epsilon$, while the diffusion-residual contribution is order $\eta K^2\epsilon$. Large $K$ can therefore produce a substantial residual and current error even when value MSE is small. This miniature example captures the main scientific reason for comparing Modules~4 and~5.
+
+\subsection{A minimal numerical loss example}
+
+Suppose a batch has two standardized observations:
+\begin{equation}
+(\widetilde\psi_1,\widetilde U_1)=(0.5,-0.2),
+\qquad
+(\widetilde\psi_2,\widetilde U_2)=(-0.1,0.4),
+\end{equation}
+and predictions
+\begin{equation}
+(0.4,-0.1),
+\qquad
+(-0.3,0.5).
+\end{equation}
+Then
+\begin{align}
+\MSE_\psi&=\frac{(0.4-0.5)^2+(-0.3+0.1)^2}{2}=0.025,\\
+\MSE_U&=\frac{(-0.1+0.2)^2+(0.5-0.4)^2}{2}=0.010.
+\end{align}
+With equal channel weights,
+\begin{equation}
+\Ldata=0.035.
+\end{equation}
+The optimizer differentiates this scalar with respect to every weight and bias. It does not compare the prediction with a differential equation.
+
+\section{Reproducibility and implementation handoff}
+\label{sec:reproducibility}
+
+\subsection{Configuration that must be saved}
+
+Every training run should record:
+\begin{itemize}
+  \item project version and source-code commit identifier when available;
+  \item dataset schema and case-manifest checksums;
+  \item exact train/validation/test case identifiers;
+  \item observed-point index lists or deterministic sampling rules;
+  \item physical normalization and neural-scaling statistics;
+  \item periodic feature definition and coefficient transforms;
+  \item architecture, activation, parameter count, and initialization;
+  \item loss definition and all weights;
+  \item optimizer, learning-rate schedule, batch hierarchy, and update count;
+  \item early-stopping rule and selected checkpoint;
+  \item random seeds and software/hardware environment;
+  \item training and validation histories; and
+  \item final per-case metrics and prediction artifact locations.
+\end{itemize}
+
+\subsection{Acceptance tests before full training}
+
+\begin{enumerate}[label=\arabic*.]
+  \item \textbf{Schema test:} incompatible sign conventions, normalization, field order, or coordinate shapes are rejected.
+  \item \textbf{Split test:} no case identifier or parameter triplet appears in more than one partition.
+  \item \textbf{Scaling test:} transform followed by inverse transform reproduces inputs and outputs within floating-point tolerance.
+  \item \textbf{Periodic-feature test:} features match at $0$ and $L_x$ or $L_y$.
+  \item \textbf{Shape test:} batches and predictions use documented row/column ordering.
+  \item \textbf{Loss test:} a hand-calculated batch agrees with code.
+  \item \textbf{Gradient test:} automatic gradients are finite and agree with finite differences for a tiny network.
+  \item \textbf{Overfit test:} the network can fit a very small data subset.
+  \item \textbf{Checkpoint test:} saving and loading reproduces identical predictions.
+  \item \textbf{Inference test:} full snapshots are reconstructed in the correct orientation.
+  \item \textbf{Derived-field test:} automatic and spectral derivatives agree on a known analytic network or Fourier field.
+  \item \textbf{No-physics audit:} the training graph contains only value-data and declared numerical-regularization terms.
+\end{enumerate}
+
+\subsection{Minimum run products}
+
+A completed baseline run should produce:
+\begin{itemize}
+  \item a machine-readable frozen configuration;
+  \item a split and observation manifest;
+  \item preprocessing parameters;
+  \item trained checkpoint and model metadata;
+  \item training and validation loss histories;
+  \item full-grid predictions for held-out cases;
+  \item per-field and per-case metrics;
+  \item derived physical diagnostic histories;
+  \item timing and memory measurements; and
+  \item a concise experiment summary linking every artifact.
+\end{itemize}
+
+\subsection{Runtime quantities}
+
+Distinguish:
+\begin{itemize}
+  \item $T_{\rm solver}$: reference-solver time needed to generate cases;
+  \item $T_{\rm prep}$: preprocessing and data-loading time;
+  \item $T_{\rm train}$: neural training time;
+  \item $T_{\rm point}$: one point inference time at a specified batch size;
+  \item $T_{\rm field}$: complete field reconstruction time at a specified grid; and
+  \item $T_{\rm diag}$: time to compute derivatives and physical diagnostics.
+\end{itemize}
+Accelerator warm-up, data transfer, and batch size can dominate microbenchmarks. Report measurement protocol rather than one context-free number.
+
+\section{Common misconceptions}
+\label{sec:misconceptions}
+
+\subsection{``A data-only neural network contains no assumptions''}
+
+False. Architecture, smooth activations, periodic features, scaling, finite capacity, optimization, and sampling all impose inductive biases. ``Data-only'' means no explicit governing-equation or physical-constraint term enters the training objective.
+
+\subsection{``More grid points always mean more physical information''}
+
+False. Dense points from one trajectory are correlated. Additional independent parameter cases can provide more information about the family even with fewer points per case.
+
+\subsection{``Random point splitting gives a large independent test set''}
+
+False. Points from the same trajectory share parameters, dynamics, and nearby neighbors. The apparent test set is not independent at the physical-case level.
+
+\subsection{``The network predicts the next time step''}
+
+Not in the frozen formulation. It evaluates the field directly at requested $t$. It is a coordinate surrogate, not an autoregressive time integrator.
+
+\subsection{``Continuous output means exact super-resolution''}
+
+False. The network is evaluable continuously, but off-grid accuracy is limited by training information, architecture, and reference resolution.
+
+\subsection{``Standardization is the same as nondimensionalization''}
+
+False. Physical nondimensionalization defines the model. Standardization is a later numerical transform fitted from training values.
+
+\subsection{``Equal raw MSE weights treat $\psi$ and $U$ equally''}
+
+Not if their scales differ. Separate standardization or explicit normalization is needed to interpret equal numerical weights.
+
+\subsection{``Low $\psi$ error guarantees accurate current''}
+
+False. $J$ depends on second spatial derivatives and can amplify high-frequency error by the squared wavenumber.
+
+\subsection{``Computing a PDE residual makes the model a PINN''}
+
+Only if the residual influences training. Evaluation-only residuals diagnose a data-only model without changing its category.
+
+\subsection{``Periodic training data automatically produce a periodic network''}
+
+Not exactly. A network may approximate endpoint agreement but still form a seam. A periodic input representation makes equality structural.
+
+\subsection{``The best test seed is the reported model''}
+
+That is selection bias. Report a predeclared selection protocol and the distribution across repeated training seeds.
+
+\subsection{``This is already an M3D-C1 surrogate''}
+
+No. It is a surrogate for an independent synthetic two-field reduced-MHD dataset in an M3D-C1-shaped future workflow. Genuine M3D-C1 data are not introduced until Module~7.
+
+\section{Module 4 computational contract}
+\label{sec:contract}
+
+\subsection{Input-output contract}
+
+\begin{align}
+\text{Raw inputs: }&(x,y,t,\eta,\nu,A_0),\\
+\text{Processed inputs: }&\vect{z}\text{ from periodic encoding and stored training transforms},\\
+\text{Primary outputs: }&(\widehat\psi,\widehat U),\\
+\text{Evaluation-only derived fields: }&
+\widehat J=-\nabla^2\widehat\psi,
+\quad
+\widehat\omega=\nabla^2\widehat U.
+\end{align}
+
+\subsection{Data contract}
+
+Only verified Module~2 cases accepted by the versioned Module~3 schema may enter training. Complete case identity and provenance survive point flattening. Splits are assigned by case and frozen before preprocessing or point selection.
+
+\subsection{Loss contract}
+
+\begin{equation}
+\Ltrain
+=\lambda_\psi\MSE(\widehat{\widetilde\psi},\widetilde\psi)
++\lambda_U\MSE(\widehat{\widetilde U},\widetilde U)
++\mathcal{L}_{\rm numerical\ reg},
+\end{equation}
+where $\mathcal{L}_{\rm numerical\ reg}$ is zero by default or a declared nonphysical regularizer such as validation-selected weight decay. Physics, derivative-target, $J$, and $\omega$ terms are excluded from the primary baseline.
+
+\subsection{Evaluation contract}
+
+Evaluation uses complete held-out cases and reports primary fields, derived fields, time histories, physical diagnostics, residuals, periodicity, interpolation/extrapolation category, run-to-run variation, and compute cost. Metrics are computed after inverse scaling.
+
+\subsection{Fairness contract for Module 5}
+
+Module~5 inherits the same cases, observed points, preprocessing, periodic representation, architecture family, data loss, and scoring. Added collocation points, physics weights, optimization changes, and compute are documented explicitly.
+
+\section{Summary and bridge to Module 5}
+\label{sec:summary}
+
+Module~4 establishes the strongest reasonable neural surrogate that learns only from stored field values. Its primary map is
+\begin{equation}
+(x,y,t,\eta,\nu,A_0)
+\longmapsto
+(\widehat\psi,\widehat U).
+\end{equation}
+The spatial coordinates are represented periodically, time and parameters are transformed using stored training-only statistics, and $\psi$ and $U$ are standardized separately. A smooth MLP predicts both fields. Training minimizes only a case-balanced data mismatch.
+
+Scientific validity depends at least as much on dataset design as on architecture. Complete parameter cases, not random points from every trajectory, define train, validation, and test partitions. Parameter interpolation, parameter extrapolation, temporal interpolation, and temporal extrapolation are distinct claims. Dense grid points do not replace independent physical cases.
+
+The data-only model is evaluated physically even though it is not trained physically. Current and vorticity are obtained from second derivatives, global energies and peak current are reconstructed, periodicity is tested, and the reduced-MHD residuals are measured without contributing gradients. These diagnostics reveal whether a low value error corresponds to a physically coherent continuous field.
+
+Module~5 begins from this exact experiment. It retains the learned map, case splits, observations, preprocessing, architecture family, and data loss, then adds
+\begin{equation}
+\mathcal{L}
+=w_{\rm data}\mathcal{L}_{\rm data}
++w_{\rm PDE}\mathcal{L}_{\rm PDE}
++w_{\rm IC}\mathcal{L}_{\rm IC}
++w_{\rm BC}\mathcal{L}_{\rm BC}
++w_{\rm global}\mathcal{L}_{\rm global}.
+\end{equation}
+Only that controlled transition permits a defensible answer to the project question: whether explicit reduced-MHD information improves accuracy, data efficiency, generalization, or physical consistency enough to justify its additional optimization and computational cost.
+
+\clearpage
+\appendix
+
+\section{Linear-algebra and calculus foundations}
+\label{app:foundations}
+
+\subsection{Scalar, vector, and matrix}
+
+A scalar is one number. A vector is an ordered list of numbers. A matrix is a rectangular array. If $\mat{W}\in\mathbb{R}^{m\times n}$ and $\vect{h}\in\mathbb{R}^{n}$, then $\mat{W}\vect{h}\in\mathbb{R}^{m}$. The entry in output position $i$ is
+\begin{equation}
+(\mat{W}\vect{h})_i=\sum_{j=1}^{n}W_{ij}h_j.
+\end{equation}
+An affine map adds a bias:
+\begin{equation}
+\vect{a}=\mat{W}\vect{h}+\vect{b}.
+\end{equation}
+
+\subsection{Gradient and Jacobian}
+
+For scalar $f(\vect{x})$, the gradient is the vector of partial derivatives. For vector function $\vect{f}:\mathbb{R}^{n}\to\mathbb{R}^{m}$, the Jacobian is the $m\times n$ matrix
+\begin{equation}
+J_{ij}=\frac{\pd f_i}{\pd x_j}.
+\end{equation}
+Automatic differentiation computes products involving these derivatives without necessarily forming every Jacobian entry explicitly.
+
+\subsection{Chain rule through scaling}
+
+If $\widetilde x=(x-m_x)/s_x$ and $\widehat\psi=m_\psi+s_\psi\widehat{\widetilde\psi}(\widetilde x)$, then
+\begin{align}
+\frac{\pd\widehat\psi}{\pd x}
+&=\frac{s_\psi}{s_x}
+\frac{\pd\widehat{\widetilde\psi}}{\pd\widetilde x},\\
+\frac{\pd^2\widehat\psi}{\pd x^2}
+&=\frac{s_\psi}{s_x^2}
+\frac{\pd^2\widehat{\widetilde\psi}}{\pd\widetilde x^2}.
+\end{align}
+With periodic encoding, another chain-rule layer enters. For $c_x=\cos(2\pi x/L_x)$ and $s_x=\sin(2\pi x/L_x)$,
+\begin{equation}
+\frac{\pd\widehat\psi}{\pd x}
+=\frac{2\pi}{L_x}
+\left(
+c_x\frac{\pd\widehat\psi}{\pd s_x}
+-s_x\frac{\pd\widehat\psi}{\pd c_x}
+\right).
+\end{equation}
+Automatic differentiation can propagate these factors if the feature construction is inside the differentiable graph. Hand scaling outside that graph requires explicit care.
+
+\subsection{Mean and standard deviation}
+
+For $N$ training values $a_n$, the population-form mean and standard deviation used for deterministic preprocessing may be written
+\begin{align}
+m_a&=\frac1N\sum_{n=1}^N a_n,\\
+s_a&=\left[\frac1N\sum_{n=1}^N(a_n-m_a)^2\right]^{1/2}.
+\end{align}
+The code must freeze whether the divisor is $N$ or $N-1$. Either can be made consistent; mixing conventions prevents exact reproduction.
+
+\section{Metric catalog}
+\label{app:metrics}
+
+For a reference vector $\vect{a}$ and prediction $\widehat{\vect{a}}$ with $N$ entries:
+
+\subsection{Mean absolute error}
+\begin{equation}
+\MAE=\frac1N\sum_{n=1}^N|\widehat a_n-a_n|.
+\end{equation}
+
+\subsection{Mean squared error and root mean squared error}
+\begin{align}
+\MSE&=\frac1N\sum_{n=1}^N(\widehat a_n-a_n)^2,\\
+\RMSE&=\sqrt{\MSE}.
+\end{align}
+
+\subsection{Relative $L_2$ error}
+\begin{equation}
+\epsilon_{2,a}
+=\frac{\left[\sum_n(\widehat a_n-a_n)^2\right]^{1/2}}
+{\left[\sum_na_n^2\right]^{1/2}+\epsilon_{\rm floor}}.
+\end{equation}
+
+\subsection{Relative maximum error}
+\begin{equation}
+\epsilon_{\infty,a}
+=\frac{\max_n|\widehat a_n-a_n|}
+{\max_n|a_n|+\epsilon_{\rm floor}}.
+\end{equation}
+
+\subsection{Coefficient of determination}
+
+The coefficient
+\begin{equation}
+R^2
+=1-\frac{\sum_n(\widehat a_n-a_n)^2}
+{\sum_n(a_n-\overline a)^2}
+\end{equation}
+compares squared error with deviation from the sample mean. $R^2$ can be negative on held-out data and can be misleading for nearly constant fields. It is supplementary, not a replacement for physically interpretable errors.
+
+\subsection{Peak and integral errors}
+
+For scalar diagnostic $d(t)$,
+\begin{equation}
+\epsilon_d(t)=
+\frac{|\widehat d(t)-d(t)|}{|d(t)|+\epsilon_{\rm floor}}.
+\end{equation}
+For a history, report time-resolved error and an integrated measure such as
+\begin{equation}
+\epsilon_{d,\rm hist}
+=\frac{\left[\sum_k(\widehat d_k-d_k)^2\right]^{1/2}}
+{\left[\sum_kd_k^2\right]^{1/2}+\epsilon_{\rm floor}}.
+\end{equation}
+
+\section{Symbol table}
+\label{app:symbols}
+
+\small
+\begin{longtable}{p{0.18\textwidth}p{0.49\textwidth}p{0.22\textwidth}}
+\toprule
+Symbol & Meaning & Status or units \\
+\midrule
+\endfirsthead
+\toprule
+Symbol & Meaning & Status or units \\
+\midrule
+\endhead
+$x,y$ & Cartesian coordinates in the periodic plane & dimensionless \\
+$t$ & Time & dimensionless \\
+$L_x,L_y$ & Period lengths of the spatial domain & dimensionless \\
+$\eta$ & Magnetic diffusivity parameter & dimensionless \\
+$\nu$ & Kinematic viscosity parameter & dimensionless \\
+$A_0$ & Initial perturbation amplitude parameter & dimensionless \\
+$\vect{\mu}$ & Case parameter vector $(\eta,\nu,A_0)$ & dimensionless \\
+$\psi$ & Magnetic-flux function & dimensionless \\
+$U$ & Flow stream function & dimensionless \\
+$J$ & Current variable $-\nabla^2\psi$ & dimensionless \\
+$\omega$ & Vorticity $\nabla^2U$ & dimensionless \\
+$\vect{s}$ & Raw network input vector & mixed dimensionless entries \\
+$\vect{z}$ & Processed network input vector & numerically scaled \\
+$\vect{q}$ & Target output vector $(\psi,U)$ & dimensionless \\
+$\widehat a$ & Neural prediction of quantity $a$ & same status as $a$ \\
+$\widetilde a$ & Numerically transformed version of $a$ & scaled \\
+$m_a,s_a$ & Stored training-set location and scale for $a$ & same units as $a$ \\
+$\mathcal{N}_{\vect{\theta}}$ & Neural-network function & numerical map \\
+$\vect{\theta}$ & Vector of all trainable weights and biases & numerical parameters \\
+$\mat{W}^{(\ell)}$ & Weight matrix at layer $\ell$ & trainable \\
+$\vect{b}^{(\ell)}$ & Bias vector at layer $\ell$ & trainable \\
+$\vect{a}^{(\ell)}$ & Pre-activation at layer $\ell$ & numerical \\
+$\vect{h}^{(\ell)}$ & Hidden representation at layer $\ell$ & numerical \\
+$\sigma$ & Activation function & nonlinear function \\
+$L$ & Number of hidden layers & integer \\
+$n_\ell$ & Width of layer $\ell$ & integer \\
+$N_\theta$ & Number of trainable scalar parameters & integer \\
+$\mathcal{D}_{\rm tr}$ & Training observations & dataset subset \\
+$\mathcal{C}_{\rm tr}$ & Training case identifiers & case subset \\
+$\mathcal{C}_{\rm va}$ & Validation case identifiers & case subset \\
+$\mathcal{C}_{\rm te}$ & Test case identifiers & case subset \\
+$\mathcal{B}$ & Mini-batch of supervised examples & dataset subset \\
+$\Ldata$ & Data mismatch loss & scalar \\
+$\lambda_\psi,\lambda_U$ & Output-channel data-loss weights & dimensionless \\
+$\alpha$ & Learning rate or declared regularization coefficient, according to context & dimensionless numerical choice \\
+$\beta_1,\beta_2$ & Adam exponential-moment coefficients & dimensionless \\
+$\vect{m}_k,\vect{v}_k$ & Adam first- and second-moment estimates & optimizer state \\
+$e_a$ & Prediction error $\widehat a-a$ & same status as $a$ \\
+$\epsilon_{\rm floor}$ & Declared small denominator floor in relative metrics & same status as denominator \\
+$E_B,E_K$ & Magnetic and kinetic energies & dimensionless integrals \\
+$\Rpsi,\Romega$ & Reduced-MHD PDE residuals & evaluation-only in Module 4 \\
+$T_{\rm solver}$ & Reference-case generation time & time \\
+$T_{\rm train}$ & Neural training time & time \\
+$T_{\rm field}$ & Full-field inference time & time \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Acronym and terminology table}
+\label{app:acronyms}
+
+\begin{longtable}{p{0.23\textwidth}p{0.67\textwidth}}
+\toprule
+Term & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Term & Meaning \\
+\midrule
+\endhead
+AD & Automatic differentiation; exact chain-rule differentiation of a computational graph up to floating-point effects \\
+BC & Boundary condition \\
+CPU & Central processing unit \\
+Data leakage & Use of validation or test information in training, preprocessing, or model selection \\
+Epoch & Approximately one pass through a fixed training set; must be clarified for resampled data \\
+Feature & Numerical input supplied to a learning model \\
+FNO & Fourier neural operator \\
+Fourier feature & Sine-cosine transformation used to represent frequency content or periodicity \\
+GPU & Graphics processing unit \\
+HDF5 & Hierarchical Data Format version 5, a scientific array container \\
+Hyperparameter & Design choice not updated by ordinary backpropagation, such as width or learning rate \\
+IC & Initial condition \\
+Inductive bias & Assumption or preference introduced by representation, architecture, loss, or optimization \\
+Inference & Evaluation of a trained model \\
+Interpolation & Prediction within the support of represented inputs \\
+Extrapolation & Prediction outside the support of represented inputs \\
+Label or target & Desired output paired with a supervised input \\
+MAE & Mean absolute error \\
+MHD & Magnetohydrodynamics \\
+MLP & Multilayer perceptron, a feedforward network of affine layers and nonlinear activations \\
+MSE & Mean squared error \\
+Neural operator & Learned mapping between function spaces \\
+Optimizer & Algorithm that updates trainable parameters using loss derivatives \\
+Overfitting & Low training error with poor performance on unseen data \\
+PDE & Partial differential equation \\
+PINN & Physics-informed neural network \\
+RMHD & Reduced magnetohydrodynamics; the precise reduction must be stated \\
+RMSE & Root mean squared error \\
+Seed & Integer used to initialize a pseudorandom sequence \\
+Snapshot & Complete spatial field at one stored time \\
+Spectral bias & Tendency of a coordinate network and its optimization to fit low frequencies before high frequencies \\
+Standardization & Numerical centering and scaling using stored statistics \\
+Supervised learning & Learning from paired inputs and desired outputs \\
+Surrogate & Computational approximation to another model's input-output behavior \\
+Test set & Untouched data used for final performance estimation after design freeze \\
+Training set & Data used to update model parameters \\
+Underfitting & Failure to represent or optimize even the training relationship adequately \\
+Validation set & Held-out data used for model and hyperparameter selection \\
+Weight decay & Numerical regularization that shrinks trainable parameters \\
+\bottomrule
+\end{longtable}
+
+\section{Concept questions and answer sketches}
+\label{app:questions}
+
+\subsection*{Questions}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Why is Module~4 necessary if the project's main interest is a PINN?
+  \item What makes the Module~4 model parameterized?
+  \item What is the difference between one simulation case and one supervised point example?
+  \item Why is a random point split across every trajectory scientifically weak?
+  \item Why must scaling statistics be computed from training cases only?
+  \item What is the difference between physical nondimensionalization and neural standardization?
+  \item Why use both sine and cosine for a periodic coordinate?
+  \item Why is tanh a more transferable activation than ReLU for the Module~4 to Module~5 comparison?
+  \item What do network weights and biases represent?
+  \item Why does adding many linear layers without activations not create a nonlinear model?
+  \item Why is equal raw MSE not necessarily equal treatment of $\psi$ and $U$?
+  \item What is backpropagation, and how does it differ from an optimizer?
+  \item What is the difference between an epoch and an optimizer update?
+  \item Why can $J$ be inaccurate when $\psi$ looks accurate?
+  \item Can a data-only model be evaluated with a PDE residual without becoming a PINN?
+  \item Why is time interpolation not forecasting?
+  \item What is the difference between a coordinate network and a neural operator?
+  \item Which quantities should be held fixed in the primary Module~4 versus Module~5 comparison?
+  \item Why should several random seeds be reported?
+  \item What claim about M3D-C1 is justified after completing Module~4?
+\end{enumerate}
+
+\subsection*{Answer sketches}
+
+\begin{enumerate}[label=\textbf{A\arabic*.}]
+  \item It measures what can be learned from data alone, so changes caused by added physics information can be identified rather than assumed.
+  \item The case parameters $(\eta,\nu,A_0)$ are network inputs, allowing one set of weights to represent multiple cases.
+  \item A case is a complete trajectory at fixed physical parameters. A point example is one coordinate-time-parameter input paired with one field value pair.
+  \item Training and test points share the same parameters and trajectory and may be neighbors, so the test measures within-case interpolation rather than unseen-case generalization.
+  \item Validation/test statistics leak information about held-out distributions and make performance estimates optimistic or deployment assumptions unrealistic.
+  \item Nondimensionalization defines the physics relative to reference scales; standardization is a later invertible numerical transform used for optimization.
+  \item Together they map a circle without a discontinuity and distinguish phase; either sine or cosine alone maps multiple positions to the same value.
+  \item Tanh is smooth through the derivative orders needed by the strong-form PDE residual; ReLU has unsuitable classical second derivatives.
+  \item They are trainable numerical coefficients controlling affine combinations and offsets of internal features.
+  \item A composition of affine maps is still affine. Nonlinear activations are required to represent nonlinear dependence.
+  \item A larger-variance output contributes larger squared numerical errors and can dominate unless channels are separately scaled or weighted.
+  \item Backpropagation computes loss derivatives by the chain rule. An optimizer uses those derivatives to choose parameter updates.
+  \item An update changes parameters once; an epoch is approximately one pass through a defined finite training set and may be ambiguous with resampling.
+  \item $J=-\nabla^2\psi$ depends on second derivatives, which amplify high-frequency errors by squared wavenumber.
+  \item Yes. It remains data-only if the residual is diagnostic and never contributes a gradient or model-selection rule that is falsely described as training-free.
+  \item If the training data span the tested time interval, unused times inside it are interpolation. Forecasting requires evaluation beyond the trained interval.
+  \item A coordinate network maps finite coordinates and parameters to field values. A neural operator maps an input function to an output function.
+  \item Case splits, labeled observations, preprocessing, coordinate representation, architecture capacity, data loss, seeds, and evaluation should be matched; additional PINN collocation and compute are reported.
+  \item Optimization is stochastic and seed-sensitive. A distribution distinguishes reliable improvement from a favorable initialization.
+  \item Only that a data-only surrogate has been tested on synthetic two-field reduced-MHD cases in an M3D-C1-shaped workflow. No validated actual M3D-C1 surrogate claim follows.
+\end{enumerate}
+
+\clearpage
+\begin{thebibliography}{99}
+
+\bibitem{Goodfellow2016}
+I. Goodfellow, Y. Bengio, and A. Courville,
+\emph{Deep Learning},
+MIT Press (2016),
+\url{https://www.deeplearningbook.org/}.
+
+\bibitem{Bishop2006}
+C. M. Bishop,
+\emph{Pattern Recognition and Machine Learning},
+Springer (2006).
+
+\bibitem{Cybenko1989}
+G. Cybenko,
+``Approximation by superpositions of a sigmoidal function,''
+\emph{Mathematics of Control, Signals and Systems} \textbf{2}, 303--314 (1989),
+\url{https://doi.org/10.1007/BF02551274}.
+
+\bibitem{Glorot2010}
+X. Glorot and Y. Bengio,
+``Understanding the difficulty of training deep feedforward neural networks,''
+in \emph{Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics},
+PMLR \textbf{9}, 249--256 (2010),
+\url{https://proceedings.mlr.press/v9/glorot10a.html}.
+
+\bibitem{Kingma2015}
+D. P. Kingma and J. Ba,
+``Adam: A method for stochastic optimization,''
+\emph{Third International Conference on Learning Representations} (2015),
+\url{https://arxiv.org/abs/1412.6980}.
+
+\bibitem{Tancik2020}
+M. Tancik, P. Srinivasan, B. Mildenhall, S. Fridovich-Keil, N. Raghavan,
+U. Singhal, R. Ramamoorthi, J. Barron, and R. Ng,
+``Fourier features let networks learn high frequency functions in low dimensional domains,''
+\emph{Advances in Neural Information Processing Systems} \textbf{33}, 7537--7547 (2020),
+\url{https://proceedings.neurips.cc/paper/2020/hash/55053683268957697aa39fba6f231c68-Abstract.html}.
+
+\bibitem{Lu2021}
+L. Lu, P. Jin, G. Pang, Z. Zhang, and G. E. Karniadakis,
+``Learning nonlinear operators via DeepONet based on the universal approximation theorem of operators,''
+\emph{Nature Machine Intelligence} \textbf{3}, 218--229 (2021),
+\url{https://doi.org/10.1038/s42256-021-00302-5}.
+
+\bibitem{Li2021}
+Z. Li, N. Kovachki, K. Azizzadenesheli, B. Liu, K. Bhattacharya,
+A. Stuart, and A. Anandkumar,
+``Fourier neural operator for parametric partial differential equations,''
+\emph{Ninth International Conference on Learning Representations} (2021),
+\url{https://openreview.net/forum?id=c8P9NQVtmnO}.
+
+\bibitem{Raissi2019}
+M. Raissi, P. Perdikaris, and G. E. Karniadakis,
+``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,''
+\emph{Journal of Computational Physics} \textbf{378}, 686--707 (2019),
+\url{https://doi.org/10.1016/j.jcp.2018.10.045}.
+
+\bibitem{Goedbloed2004}
+J. P. Goedbloed and S. Poedts,
+\emph{Principles of Magnetohydrodynamics: With Applications to Laboratory and Astrophysical Plasmas},
+Cambridge University Press (2004).
+
+\end{thebibliography}
+
+\end{document}

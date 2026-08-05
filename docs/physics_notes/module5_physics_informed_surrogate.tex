@@ -1,0 +1,1989 @@
+\documentclass[11pt]{article}
+
+\input{../shared/project_style.tex}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{upquote}
+
+\definecolor{WarningRed}{HTML}{9B2C2C}
+\definecolor{WarmGold}{HTML}{B7791F}
+\definecolor{PaleGold}{HTML}{FFF8E6}
+\definecolor{PaleRed}{HTML}{FFF1F1}
+\definecolor{DeepGreen}{HTML}{276749}
+\definecolor{PaleGreen}{HTML}{F0FFF4}
+\definecolor{DeepPurple}{HTML}{5B3A8A}
+\definecolor{PalePurple}{HTML}{F6F0FF}
+
+\newtcolorbox{definitionbox}[1][]{
+  colback=SoftTeal,colframe=AccentTeal,title={Definition#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{warningbox}[1][]{
+  colback=PaleRed,colframe=WarningRed,title={Important distinction#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{checkpointbox}[1][]{
+  colback=PaleGold,colframe=WarmGold,title={Learning checkpoint#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{conventionbox}[1][]{
+  colback=SoftBlue,colframe=TitleBlue,title={Frozen project convention#1},
+  fonttitle=\bfseries,boxrule=0.9pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{practicebox}[1][]{
+  colback=PaleGreen,colframe=DeepGreen,title={Recommended practice#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{advancedbox}[1][]{
+  colback=PalePurple,colframe=DeepPurple,title={Advanced note#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\pd}{\partial}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\average}[1]{\left\langle #1\right\rangle}
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+\newcommand{\Rpsi}{\mathcal{R}_{\psi}}
+\newcommand{\Romega}{\mathcal{R}_{\omega}}
+\newcommand{\Ldata}{\mathcal{L}_{\mathrm{data}}}
+\newcommand{\Lpde}{\mathcal{L}_{\mathrm{PDE}}}
+\newcommand{\Lic}{\mathcal{L}_{\mathrm{IC}}}
+\newcommand{\Lbc}{\mathcal{L}_{\mathrm{BC}}}
+\newcommand{\Lglobal}{\mathcal{L}_{\mathrm{global}}}
+\newcommand{\Lgauge}{\mathcal{L}_{\mathrm{gauge}}}
+\newcommand{\Ltotal}{\mathcal{L}_{\mathrm{total}}}
+\newcommand{\MSE}{\operatorname{MSE}}
+\newcommand{\RMSE}{\operatorname{RMSE}}
+\newcommand{\Var}{\operatorname{Var}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PINN\_M3DC1}
+\rhead{Module 5 Physics Notes}
+\cfoot{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \lhead{PINN\_M3DC1}%
+  \rhead{Module 5 Physics Notes}%
+  \cfoot{\thepage}%
+}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Large\color{AccentTeal} PINN\_M3DC1}\par
+\vspace{0.65cm}
+{\Huge\bfseries\color{TitleBlue} Module 5}\par
+\vspace{0.25cm}
+{\LARGE\bfseries\color{TitleBlue} Physics-Informed Surrogate}\par
+\vspace{0.8cm}
+{\large A textbook-style development of the reduced-MHD PINN, from automatic differentiation to controlled validation}\par
+\vfill
+\begin{tcolorbox}[width=0.92\textwidth,colback=SoftBlue,colframe=TitleBlue,arc=2mm]
+\centering
+\textbf{Learning task}\par
+\vspace{0.35em}
+Retain the Module~4 parameterized map
+\[
+(x,y,t,\eta,\nu,A_0)\longmapsto
+(\widehat\psi,\widehat U),
+\]
+then train it using observed field values together with the reduced-MHD partial differential equations, the initial condition, periodicity, the stream-function gauge, and optional global balance laws.
+\end{tcolorbox}
+\vfill
+{\normalsize Version 1.0 \quad | \quad 4 August 2026}\par
+\vspace{0.25cm}
+{\small Physics and scientific-machine-learning note for the synthetic reduced-MHD proof of concept}\par
+\end{titlepage}
+
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+
+\section*{Preface: this is where the PINN enters}
+
+Module~4 constructed a conventional data-only neural surrogate. It learned magnetic flux $\psi$ and flow stream function $U$ by comparing predicted values with stored numerical values. The governing equations were permitted only as evaluation diagnostics. Module~5 removes that restriction. The same neural field representation is now differentiated inside the training computation, and its derivatives are substituted into the reduced magnetohydrodynamic equations. Violations of those equations contribute to the objective whose gradient updates the network parameters. That is the defining transition from an ordinary supervised surrogate to a \emph{physics-informed neural network}, abbreviated PINN.
+
+The idea sounds simple: add a partial differential equation (PDE) residual to the loss. The actual construction is not simple. The residual contains several derivatives, nonlinear products, transport coefficients, and two coupled fields. The vorticity equation reaches fourth spatial derivatives of $U$ when the network outputs $(\psi,U)$ directly. Initial and boundary information must select the intended trajectory from the many functions that satisfy the differential operator locally. Different loss terms can possess very different scales and back-propagated gradients. Collocation points can miss the thin current sheet that controls reconnection. A low average residual can therefore coexist with an inaccurate solution, and a low data error can coexist with severe derivative error.
+
+This note develops each of those issues from first principles. It assumes no previous PINN course. It does assume the Module~1 meanings and sign conventions for $\psi$, $U$, current $J$, vorticity $\omega$, the Poisson bracket, magnetic diffusivity $\eta$, and kinematic viscosity $\nu$. Machine-learning foundations introduced in Module~4 are summarized when they become important but are not repeated in full.
+
+\begin{warningbox}[\,: claim boundary]
+Module~5 is a physics-informed surrogate for the project's independent two-dimensional, two-field reduced resistive-MHD model. It establishes neither full extended-MHD fidelity nor a validated surrogate of genuine M3D-C1 output. Actual M3D-C1 arrays, field mappings, closures, mesh information, and renewed validation enter only through Module~7.
+\end{warningbox}
+
+\begin{warningbox}[\,: no automatic superiority]
+Adding correct equations does not guarantee a more accurate model. PINN objectives can be ill-conditioned and difficult to optimize; strong-form residuals can under-resolve localized structures; and a misspecified equation can bias the solution away from valid data. Module~5 is an experiment whose benefit must be measured against Module~4, not assumed in advance \cite{Wang2021Gradients,Krishnapriyan2021}.
+\end{warningbox}
+
+\subsection*{How to read this note}
+
+The central construction is
+\[
+\begin{gathered}
+\text{smooth parameterized network}
+\longrightarrow (\widehat\psi,\widehat U)
+\longrightarrow (\widehat J,\widehat\omega)\\
+\longrightarrow (\Rpsi,\Romega)
+\longrightarrow \text{physics losses}
+\longrightarrow \text{parameter updates},
+\end{gathered}
+\]
+while observed data, initial values, periodicity, gauge information, and global balances supply additional constraints. Sections~\ref{sec:role}--\ref{sec:residuals} define the physics-informed problem and derive its strong-form residuals. Sections~\ref{sec:ad}--\ref{sec:global} explain differentiation and every constraint. Sections~\ref{sec:objective}--\ref{sec:training} address loss scaling, sampling, optimization, and curricula. Sections~\ref{sec:failure}--\ref{sec:contract} define failure diagnostics, fair experiments, acceptance tests, and the computational handoff. The appendices collect worked derivations, symbols, terminology, and review questions.
+
+\subsection*{Learning objectives}
+
+After working through this module, the reader should be able to:
+\begin{enumerate}[label=\arabic*.]
+  \item state exactly what information makes Module~5 physics-informed;
+  \item distinguish a single-case PINN, a parameterized PINN, an inverse PINN, and a neural time-stepper;
+  \item reproduce the project's signs for $J$, $\omega$, $\Rpsi$, and $\Romega$;
+  \item expand both PDE residuals into ordinary partial derivatives;
+  \item explain why the vorticity residual requires derivatives through fourth order in $U$;
+  \item explain automatic differentiation as chain-rule differentiation of the network computation;
+  \item distinguish automatic differentiation from finite differences and symbolic differentiation;
+  \item recover physical nondimensional outputs before evaluating a PDE residual;
+  \item construct separate data, PDE, initial-condition, boundary, gauge, and global-balance losses;
+  \item distinguish soft enforcement from hard enforcement;
+  \item explain why periodic coordinate encoding enforces more than matching endpoint values;
+  \item design interior collocation sets without confusing unlabeled physics points with labeled data;
+  \item normalize whole residual equations without altering their term-by-term cancellations;
+  \item diagnose loss imbalance using gradient magnitudes rather than raw loss values alone;
+  \item describe fixed, adaptive, curriculum, and augmented-Lagrangian weighting strategies;
+  \item derive the total-energy and mean-flux balance constraints on the periodic domain;
+  \item explain why PDE residual minimization does not by itself prove solution accuracy;
+  \item design a single-case debugging sequence before parameterized training;
+  \item preserve the controlled comparison with Module~4; and
+  \item state precisely what scientific claim is and is not justified by Module~5.
+\end{enumerate}
+
+\ProjectTOC
+\clearpage
+\pagenumbering{arabic}
+
+\section{Scientific role of Module 5}
+\label{sec:role}
+
+\subsection{The question being tested}
+
+Let $M_{\rm data}$ be the trained Module~4 model and $M_{\rm PINN}$ the Module~5 model. Both approximate the same physical mapping,
+\begin{equation}
+(x,y,t,\eta,\nu,A_0)\mapsto(\psi,U).
+\end{equation}
+The controlled question is
+\begin{quote}
+At the same labeled-data budget and on the same complete unseen parameter cases, does adding the stated reduced-MHD information improve field accuracy, derivative accuracy, data efficiency, generalization, or physical consistency enough to justify its added optimization and computational cost?
+\end{quote}
+This wording contains five controls. The input-output task is unchanged. The labeled observations are identical. Entire parameter cases are held out. Multiple notions of accuracy are measured. Extra cost is counted.
+
+\subsection{What ``physics-informed'' means operationally}
+
+\begin{definitionbox}
+A model is \textbf{physics-informed during training} when a declared physical equation, constraint, symmetry, conservation law, constitutive relation, or physical observation affects the objective or architecture that determines the trained parameters.
+\end{definitionbox}
+
+In this project, Module~5 can use five information channels:
+\begin{enumerate}[label=\arabic*.]
+  \item \textbf{data:} stored values of $\psi$ and $U$ from verified Module~2 cases;
+  \item \textbf{local dynamics:} pointwise reduced-MHD PDE residuals at interior collocation points;
+  \item \textbf{initial condition:} the trajectory-defining fields at $t=0$;
+  \item \textbf{boundary and gauge information:} periodicity and $\average{U}=0$; and
+  \item \textbf{global physics:} optional spatially integrated balance laws.
+\end{enumerate}
+The first channel is supervised information. The remaining channels are physics information. An interior collocation point requires coordinates and parameters but no reference field value; its training signal is generated by evaluating the PDE on the neural prediction.
+
+\subsection{A PINN is not a conventional PDE discretization}
+
+The pseudo-spectral reference solver represents fields on a grid, computes spatial derivatives through Fourier modes, and advances a discrete state in time. The continuous-time coordinate PINN instead represents an entire space-time-parameter field with one function $\mathcal{N}_{\vect\theta}$ and adjusts its trainable parameters $\vect\theta$ to reduce sampled residuals. It does not march from one saved snapshot to the next.
+
+This distinction has consequences:
+\begin{itemize}
+  \item the PINN gives a continuous coordinate representation, but continuity is not the same as accuracy;
+  \item time $t$ is an input, so prediction within a trained time interval is not automatically forecasting;
+  \item the PDE is enforced at finitely many sampled points, not everywhere;
+  \item optimization error replaces part of the algebraic-solver error encountered in conventional methods; and
+  \item there is no general theorem in this project guaranteeing convergence to the unique PDE solution.
+\end{itemize}
+
+\subsection{Forward surrogate, inverse problem, and equation discovery}
+
+The frozen task is a \emph{forward parameterized surrogate}. Resistivity $\eta$, viscosity $\nu$, and perturbation amplitude $A_0$ are supplied as known inputs. They are not inferred. An inverse PINN would instead treat one or more physical coefficients as unknown trainable quantities constrained by observations and the PDE. Equation discovery would infer the form or coefficients of the differential operator. Those are scientifically different experiments and require identifiability and uncertainty analyses not included in the first Module~5 implementation.
+
+\subsection{Hybrid, data-free, and data-only limits}
+
+The objective can continuously connect three regimes:
+\begin{align}
+\text{data-only: }&w_{\rm data}>0,\quad w_{\rm PDE}=w_{\rm IC}=w_{\rm BC}=w_{\rm global}=0,\\
+\text{hybrid PINN: }&w_{\rm data}>0,\quad \text{at least one physics contribution is active},\\
+\text{data-free PDE PINN: }&w_{\rm data}=0,\quad \text{PDE and well-posed condition terms are active}.
+\end{align}
+The primary project comparison uses the hybrid form because its purpose is to test whether physics improves a surrogate trained from a controlled amount of solver data. A data-free forward PINN is a useful debugging and ablation case, but it answers a different cost and accuracy question.
+
+\section{Frozen physical problem and notation}
+\label{sec:physics}
+
+\subsection{Domain and independent variables}
+
+The spatial domain is the doubly periodic rectangle
+\begin{equation}
+\Omega=[0,L_x)\times[0,L_y),
+\end{equation}
+and time satisfies $t\in[0,T]$. The version-1 baseline uses $L_x=L_y=2\pi$, although the notation remains general. The raw independent-variable vector is
+\begin{equation}
+\vect{s}=(x,y,t,\eta,\nu,A_0).
+\end{equation}
+The parameter vector is
+\begin{equation}
+\vect\mu=(\eta,\nu,A_0),
+\end{equation}
+where $\eta$ is dimensionless magnetic diffusivity, $\nu$ is dimensionless kinematic viscosity, and $A_0$ is the dimensionless amplitude parameter in the Module~2 initial condition.
+
+\subsection{Primary and derived fields}
+
+The network predicts magnetic flux $\widehat\psi$ and stream function $\widehat U$. The in-plane magnetic and velocity fields are
+\begin{align}
+\widehat{\vect B}_{\perp}
+&=\nabla\widehat\psi\times\widehat{\vect z}
+=(\widehat\psi_y,-\widehat\psi_x),\\
+\widehat{\vect v}_{\perp}
+&=\widehat{\vect z}\times\nabla\widehat U
+=(-\widehat U_y,\widehat U_x).
+\end{align}
+The derived current and vorticity are
+\begin{equation}
+\widehat J=-\nabla^2\widehat\psi,
+\qquad
+\widehat\omega=\nabla^2\widehat U,
+\label{eq:derived}
+\end{equation}
+where
+\begin{equation}
+\nabla^2 f=f_{xx}+f_{yy}.
+\end{equation}
+The signs in Equation~\eqref{eq:derived} are fixed project conventions. They may not be changed to match an external paper without simultaneously transforming every dependent equation and versioning the data schema.
+
+\subsection{Poisson bracket}
+
+For scalar fields $f(x,y)$ and $g(x,y)$,
+\begin{equation}
+\bracket{f}{g}=f_xg_y-f_yg_x.
+\label{eq:bracket}
+\end{equation}
+The bracket is antisymmetric:
+\begin{equation}
+\bracket{f}{g}=-\bracket{g}{f},
+\qquad
+\bracket{f}{f}=0.
+\end{equation}
+On the periodic domain, integration by parts gives the cyclic identity
+\begin{equation}
+\int_\Omega f\bracket{g}{h}\,\dd A
+=\int_\Omega g\bracket{h}{f}\,\dd A
+=\int_\Omega h\bracket{f}{g}\,\dd A,
+\label{eq:cyclic}
+\end{equation}
+for sufficiently smooth periodic fields. This identity is essential to the energy derivation later in the note.
+
+\subsection{Evolution equations}
+
+The frozen two-field reduced resistive-MHD equations are
+\begin{align}
+\psi_t+\bracket{U}{\psi}&=\eta\nabla^2\psi,
+\label{eq:psi_pde}\\
+\omega_t+\bracket{U}{\omega}&=\bracket{J}{\psi}+\nu\nabla^2\omega,
+\label{eq:omega_pde}\\
+J&=-\nabla^2\psi,
+\qquad
+\omega=\nabla^2U.
+\label{eq:definitions}
+\end{align}
+All quantities are nondimensional in version 1. Physical reference scales remain case metadata even when their numerical values are unity.
+
+\subsection{Initial, boundary, and gauge information}
+
+The initial condition is represented abstractly as
+\begin{align}
+\psi(x,y,0;\vect\mu)&=\psi_0(x,y;A_0),\\
+U(x,y,0;\vect\mu)&=U_0(x,y;A_0),
+\end{align}
+or by the exact Module~2 formula if additional parameter dependence is later introduced. The explicit island-coalescence equilibrium and perturbation are intentionally not invented here; Module~2 must freeze them before implementation.
+
+For all relevant fields and derivatives,
+\begin{align}
+q(0,y,t;\vect\mu)&=q(L_x,y,t;\vect\mu),\\
+q(x,0,t;\vect\mu)&=q(x,L_y,t;\vect\mu).
+\end{align}
+The stream function has a constant-offset gauge because $\vect v_\perp$ depends only on $\nabla U$. The project fixes
+\begin{equation}
+\average{U}(t;\vect\mu)
+=\frac{1}{|\Omega|}\int_\Omega U\,\dd A=0.
+\label{eq:gauge}
+\end{equation}
+The spatial mean of $\psi$ is recorded and maintained consistently across each case.
+
+\begin{conventionbox}[\,: Module 5 state contract]
+The primary neural outputs and stored predictions are $(\widehat\psi,\widehat U)$. Current and vorticity are derived from those outputs. This keeps the physical state identical to Module~4. Alternative mixed-output networks are discussed only as future ablations, not as the frozen primary formulation.
+\end{conventionbox}
+
+\section{The exact neural field representation}
+\label{sec:network}
+
+\subsection{Single-case PINN}
+
+For one fixed parameter combination $\vect\mu_\star$, a single-case PINN represents
+\begin{equation}
+\mathcal{N}_{\vect\theta}^{(\vect\mu_\star)}:(x,y,t)mapsto
+(\widehat\psi,\widehat U).
+\end{equation}
+This network learns one trajectory only. Its scientific value is debugging: signs, derivative graphs, residual magnitudes, condition losses, and optimizer behavior can be checked without the additional burden of parameter generalization.
+
+\subsection{Parameterized PINN}
+
+The final Module~5 model represents a family of trajectories:
+\begin{equation}
+\mathcal{N}_{\vect\theta}:(x,y,t,\eta,\nu,A_0)mapsto
+(\widehat\psi,\widehat U).
+\label{eq:param_map}
+\end{equation}
+One parameter vector $\vect\theta$ is shared across every training case. Therefore the network must learn both within-case space-time structure and between-case dependence on $\vect\mu$.
+
+\subsection{Periodic coordinate representation}
+
+Module~4 encodes the spatial coordinates as
+\begin{equation}
+\vect p(x,y)=
+\left(
+\sin\frac{2\pi x}{L_x},
+\cos\frac{2\pi x}{L_x},
+\sin\frac{2\pi y}{L_y},
+\cos\frac{2\pi y}{L_y}
+\right).
+\label{eq:periodic_features}
+\end{equation}
+The Module~5 network receives $\vect p$ together with processed time and parameters. Because $\vect p(x+L_x,y)=\vect p(x,y)$ and $\vect p(x,y+L_y)=\vect p(x,y)$, a smooth deterministic network built from these features is periodic by construction. All coordinate derivatives produced by the chain rule are periodic as well.
+
+\begin{checkpointbox}
+Matching only $q(0)=q(L)$ does not by itself guarantee derivative periodicity. Periodic sine-cosine encoding makes the entire represented function a smooth function on the periodic coordinate circle, so value and derivative periodicity follow together. This is why the same representation is retained in Modules~4 and~5.
+\end{checkpointbox}
+
+\subsection{Smooth activation functions}
+
+The strong-form vorticity residual requires fourth spatial derivatives of $U$. The network activation must therefore be differentiable through at least fourth order in the classical sense. The hyperbolic tangent,
+\begin{equation}
+\tanh a=\frac{e^a-e^{-a}}{e^a+e^{-a}},
+\end{equation}
+is smooth at every finite $a$ and is the version-1 choice. A rectified linear unit (ReLU) is piecewise linear; its second derivative is zero almost everywhere and undefined at its kink, making it unsuitable for this direct strong-form residual. Smooth sinusoidal, softplus, or other activations can be studied later, but architecture changes must be controlled in the Module~4 comparison.
+
+\subsection{The recommended primary architecture}
+
+The initial matched architecture remains the Module~4 fully connected multilayer perceptron: six hidden layers, width 128, $\tanh$ activations, and a linear two-output head. The exact number is a starting point, not a physical constant. What matters scientifically is that the Module~4 and Module~5 capacity be comparable, that the activation support the required derivatives, and that architecture selection use validation cases rather than the final test cases.
+
+\subsection{Why direct $(\psi,U)$ output is demanding}
+
+Direct output preserves the common state contract but raises the derivative order. Since
+\begin{equation}
+\omega=U_{xx}+U_{yy},
+\end{equation}
+the viscous term contains
+\begin{equation}
+\nabla^2\omega
+=U_{xxxx}+2U_{xxyy}+U_{yyyy}.
+\label{eq:biharmonic}
+\end{equation}
+The nonlinear brackets also differentiate $J$ and $\omega$, producing third derivatives of $\psi$ and $U$. These high-order derivatives increase memory use, amplify high-frequency representation error, and can create poorly scaled gradients.
+
+\begin{advancedbox}[\,: mixed formulations]
+One can reduce derivative order by predicting additional variables such as $(\psi,U,J,\omega)$ and imposing compatibility residuals $J+\nabla^2\psi=0$ and $\omega-\nabla^2U=0$. That changes the output architecture, introduces extra consistency losses, and may permit incompatible auxiliary fields if trained poorly. It is a worthwhile future ablation, but it is not the frozen Module~5 primary model because the project explicitly holds the $(\psi,U)$ state contract fixed.
+\end{advancedbox}
+
+\section{From neural outputs to reduced-MHD residuals}
+\label{sec:residuals}
+
+\subsection{Residual as equation defect}
+
+Move every term of a PDE to one side. The resulting expression is its \emph{residual}. For an exact sufficiently smooth solution, the residual is zero at every interior point. For a neural approximation, it is generally nonzero.
+
+The project residuals are
+\begin{align}
+\Rpsi
+&=\widehat\psi_t+\bracket{\widehat U}{\widehat\psi}
+-\eta\nabla^2\widehat\psi,
+\label{eq:rpsi}\\
+\Romega
+&=\widehat\omega_t+\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}
+-\nu\nabla^2\widehat\omega.
+\label{eq:romega}
+\end{align}
+The minus sign before $\bracket{\widehat J}{\widehat\psi}$ appears because the right-hand-side Lorentz term in Equation~\eqref{eq:omega_pde} is moved to the left.
+
+\subsection{Fully expanded magnetic-flux residual}
+
+Using Equation~\eqref{eq:bracket},
+\begin{equation}
+\boxed{
+\Rpsi
+=\widehat\psi_t
++\widehat U_x\widehat\psi_y
+-\widehat U_y\widehat\psi_x
+-\eta(\widehat\psi_{xx}+\widehat\psi_{yy}) .}
+\label{eq:rpsi_expanded}
+\end{equation}
+Every quantity is evaluated at the same collocation point $(x,y,t,\vect\mu)$.
+
+\subsection{Fully expanded vorticity residual}
+
+First calculate
+\begin{align}
+\widehat J&=-(\widehat\psi_{xx}+\widehat\psi_{yy}),\\
+\widehat\omega&=\widehat U_{xx}+\widehat U_{yy}.
+\end{align}
+Then
+\begin{equation}
+\boxed{
+\begin{aligned}
+\Romega={}&\widehat\omega_t
++\widehat U_x\widehat\omega_y
+-\widehat U_y\widehat\omega_x\\
+&-\widehat J_x\widehat\psi_y
++\widehat J_y\widehat\psi_x
+-\nu(\widehat\omega_{xx}+\widehat\omega_{yy}).
+\end{aligned}}
+\label{eq:romega_expanded}
+\end{equation}
+The two middle terms are $-\bracket{\widehat J}{\widehat\psi}=-\widehat J_x\widehat\psi_y+\widehat J_y\widehat\psi_x$.
+
+\subsection{Derivative-order audit}
+
+\begin{longtable}{p{0.28\textwidth}p{0.27\textwidth}p{0.35\textwidth}}
+\toprule
+Residual term & Highest derivative of a network output & Reason \\
+\midrule
+\endfirsthead
+\toprule
+Residual term & Highest derivative of a network output & Reason \\
+\midrule
+\endhead
+$\widehat\psi_t$ & first in $t$ & direct time derivative \\
+$[\widehat U,\widehat\psi]$ & first in space & product of first derivatives \\
+$\nabla^2\widehat\psi$ & second in space & Laplacian \\
+$\widehat\omega_t$ & second in space and first in time & $\omega=\nabla^2U$ \\
+$[\widehat U,\widehat\omega]$ & third in space & first derivative of $\omega$ \\
+$[\widehat J,\widehat\psi]$ & third in space & first derivative of $J$ \\
+$\nabla^2\widehat\omega$ & fourth in space & biharmonic derivative of $U$ \\
+\bottomrule
+\end{longtable}
+
+\subsection{Pointwise zero residual is not the whole problem}
+
+Even if both residuals vanish, a unique trajectory is not selected unless the appropriate initial, boundary, and gauge information is supplied. For example, a spatially constant $U=C$ has zero derivatives and is invisible to the PDE but violates the chosen zero-mean gauge unless $C=0$. More broadly, a differential operator describes a family of admissible functions; conditions select the member corresponding to the intended physical experiment.
+
+\subsection{Residual of the continuous equation versus residual of the solver}
+
+The reference data come from a discrete pseudo-spectral calculation. They approximate the continuous PDE but do not satisfy its strong form exactly at arbitrary points. Spatial truncation, time integration, saved-output cadence, de-aliasing, and interpolation create a nonzero reference residual floor. Before interpreting neural residuals, Module~2 must quantify this floor using its own discrete operators and refinement study. A PINN should not be declared unphysical merely because it fails to beat an unrealistically zero residual target that the accepted numerical data themselves do not attain.
+
+\section{Automatic differentiation}
+\label{sec:ad}
+
+\subsection{What automatic differentiation computes}
+
+Automatic differentiation (AD) applies the chain rule to a recorded sequence of elementary operations. A neural network is such a sequence: affine maps, activation functions, periodic feature transformations, scaling operations, and output transformations. AD therefore computes derivatives of the represented neural function with respect to coordinates, parameters, or weights to floating-point accuracy without selecting a finite-difference step \cite{Baydin2018}.
+
+For a one-neuron example,
+\begin{equation}
+h(x)=\tanh(wx+b),
+\end{equation}
+AD follows
+\begin{equation}
+\frac{\dd h}{\dd x}
+=(1-\tanh^2(wx+b))w.
+\end{equation}
+For a deep network, the same chain rule is composed across many layers.
+
+\subsection{AD is not finite differencing}
+
+A centered finite difference approximates
+\begin{equation}
+f_x(x)\approx\frac{f(x+h)-f(x-h)}{2h},
+\end{equation}
+with truncation and roundoff depending on $h$. AD differentiates the implemented function itself. This eliminates finite-difference step selection, but it does not make the neural function an exact representation of the physical solution. If $\widehat\psi$ is inaccurate or excessively smooth, its AD derivative is the accurate derivative of an inaccurate approximation.
+
+\subsection{AD is not symbolic algebra}
+
+Symbolic differentiation manipulates an explicit mathematical expression into another expression. AD evaluates derivative information by propagating local derivative rules through the computational graph. The graph may contain millions of operations even when no human-readable global expression is formed.
+
+\subsection{Nested differentiation}
+
+Higher derivatives are constructed by differentiating quantities that were themselves produced by AD. A schematic sequence is
+\begin{align}
+(\widehat\psi,\widehat U)&=\mathcal{N}_{\vect\theta}(\vect s),\\
+(\widehat\psi_x,\widehat\psi_y,\widehat U_x,\widehat U_y)&=\operatorname{AD}_1(\mathcal{N}_{\vect\theta}),\\
+(\widehat\psi_{xx},\widehat\psi_{yy},\widehat U_{xx},\widehat U_{yy})&=\operatorname{AD}_2(\mathcal{N}_{\vect\theta}),\\
+(\widehat J_x,\widehat J_y,\widehat\omega_x,\widehat\omega_y)&=\operatorname{AD}_3(\mathcal{N}_{\vect\theta}),\\
+\nabla^2\widehat\omega&=\operatorname{AD}_4(\mathcal{N}_{\vect\theta}).
+\end{align}
+The training gradient then differentiates the residual loss with respect to $\vect\theta$. The implementation must retain the required derivative graph; detaching an intermediate derivative silently prevents physics gradients from reaching the weights.
+
+\subsection{Forward and reverse accumulation}
+
+Forward-mode AD efficiently propagates derivatives with respect to a small number of inputs. Reverse-mode AD efficiently accumulates derivatives of a scalar loss with respect to many weights and is the basis of ordinary backpropagation. Modern PINN implementations may combine forward and reverse operations for coordinate derivatives and parameter gradients. The best choice depends on batch size, number of coordinates, number of outputs, derivative order, and framework support.
+
+\subsection{Scaling and the physical derivative graph}
+
+Suppose the network predicts a standardized field
+\begin{equation}
+\widehat{\widetilde\psi}=\mathcal{N}_{\vect\theta}(\widetilde x,\ldots),
+\end{equation}
+with
+\begin{equation}
+\widetilde x=\frac{x-m_x}{s_x},
+\qquad
+\widehat\psi=m_\psi+s_\psi\widehat{\widetilde\psi}.
+\end{equation}
+Then
+\begin{align}
+\widehat\psi_x
+&=\frac{s_\psi}{s_x}\widehat{\widetilde\psi}_{\widetilde x},\\
+\widehat\psi_{xx}
+&=\frac{s_\psi}{s_x^2}\widehat{\widetilde\psi}_{\widetilde x\widetilde x}.
+\end{align}
+If time and field scales are omitted, the evaluated residual is not the physical nondimensional residual. The safest implementation places periodic encoding, input transformation, network evaluation, and output inverse transformation in one differentiable function of the raw nondimensional coordinates. Residuals are then formed from the recovered $\widehat\psi$ and $\widehat U$.
+
+\begin{warningbox}[\,: do not standardize PDE terms independently]
+The physical equation requires cancellation among advection, time-derivative, Lorentz, and diffusion terms. Independently standardizing each constituent before summing changes their relative coefficients and therefore changes the PDE. Form the complete residual in physical nondimensional variables first; only then divide the whole residual by one declared characteristic residual scale.
+\end{warningbox}
+
+\subsection{Periodic features inside the graph}
+
+For $s_x=\sin(2\pi x/L_x)$ and $c_x=\cos(2\pi x/L_x)$,
+\begin{equation}
+\frac{\pd\widehat\psi}{\pd x}
+=\frac{2\pi}{L_x}
+\left(
+c_x\frac{\pd\widehat\psi}{\pd s_x}
+-s_x\frac{\pd\widehat\psi}{\pd c_x}
+\right).
+\end{equation}
+AD includes these factors automatically only when $s_x$ and $c_x$ are computed from raw $x$ in the active graph.
+
+\subsection{Precision, memory, and cost}
+
+High-order derivatives can be sensitive to floating-point precision and can require large computation graphs. The implementation should benchmark at least single and double precision on a reduced problem, monitor nonfinite values, and report the chosen precision. Gradient checkpointing, smaller collocation batches, mixed forward/reverse AD, or domain decomposition may reduce memory, but each changes runtime and should be documented. Mixed precision should not be assumed safe for fourth derivatives without explicit tests.
+
+\section{Training-point populations}
+\label{sec:populations}
+
+Module~5 uses several point populations with different meanings. Combining them into one undifferentiated array makes both the mathematics and implementation difficult to audit.
+
+\subsection{Observed data points}
+
+The supervised dataset contains tuples
+\begin{equation}
+\left(x_i^{d},y_i^{d},t_i^{d},\vect\mu_i^{d},
+\psi_i^{d},U_i^{d}\right),
+\qquad i=1,\ldots,N_d.
+\end{equation}
+These are the exact Module~4 training observations for a given budget. Their identities are frozen so that the later PINN receives no additional labels.
+
+\subsection{Interior collocation points}
+
+Interior physics points contain no field targets:
+\begin{equation}
+\left(x_j^{f},y_j^{f},t_j^{f},\vect\mu_j^{f}\right),
+\qquad j=1,\ldots,N_f.
+\end{equation}
+At these coordinates, AD creates ${\Rpsi}_j$ and ${\Romega}_j$. The superscript $f$ refers to the differential-equation operator, not to a measured field.
+
+\subsection{Initial-condition points}
+
+Initial points have $t=0$ and analytic or accepted numerical targets:
+\begin{equation}
+\left(x_k^{0},y_k^{0},\vect\mu_k^{0},
+\psi_0(x_k^0,y_k^0;\vect\mu_k^0),
+U_0(x_k^0,y_k^0;\vect\mu_k^0)\right).
+\end{equation}
+They are not counted as interior collocation points. Whether they count toward the labeled-data budget must be reported. For the primary fair comparison, initial-condition values available from the known physical problem are treated as physics information and reported separately from solver-generated interior labels.
+
+\subsection{Boundary-pair points}
+
+If periodicity is imposed softly, boundary samples occur in matched pairs, such as
+\begin{equation}
+(0,y_b,t_b,\vect\mu_b)
+\quad\text{and}\quad
+(L_x,y_b,t_b,\vect\mu_b).
+\end{equation}
+The non-boundary coordinates and parameters must match within each pair. Otherwise the penalty compares different physical points.
+
+\subsection{Global quadrature groups}
+
+A global balance is not defined by independent isolated points. It requires a group of spatial quadrature nodes at a common time and parameter vector:
+\begin{equation}
+\mathcal{Q}_{g}
+=\{(x_q,y_q,t_g,\vect\mu_g,w_q)\}_{q=1}^{N_q},
+\end{equation}
+where $w_q$ is a quadrature weight. Group identity must survive batching.
+
+\subsection{Four counts that must not be conflated}
+
+\begin{itemize}
+  \item $N_d$: number of labeled interior observations;
+  \item $N_f$: number of unlabeled PDE collocation points;
+  \item $N_0$: number of initial-condition points;
+  \item $N_q$: nodes used per global quadrature group.
+\end{itemize}
+A PINN may use far more coordinate evaluations than the data-only model while using the same number of labels. This is compatible with a data-efficiency claim but not with a compute-efficiency claim unless runtime and derivative cost are also compared.
+
+\section{Supervised data loss}
+\label{sec:data_loss}
+
+The data term is inherited from Module~4. Let $\widehat{\widetilde\psi}$ and $\widehat{\widetilde U}$ denote predictions in the stored standardized output coordinates. A channel-balanced pointwise loss is
+\begin{equation}
+\Ldata
+=\lambda_{d,\psi}\frac{1}{N_d}\sum_{i=1}^{N_d}
+\left(\widehat{\widetilde\psi}_i-\widetilde\psi_i\right)^2
++\lambda_{d,U}\frac{1}{N_d}\sum_{i=1}^{N_d}
+\left(\widehat{\widetilde U}_i-\widetilde U_i\right)^2.
+\label{eq:data_loss}
+\end{equation}
+If cases contribute unequal numbers of observations, the loss is first averaged within each case and then across cases so that a densely sampled trajectory does not dominate solely through point count.
+
+The data loss may be computed in standardized coordinates because its purpose is supervised fitting with balanced output channels. The PDE residual is different: it must be computed after inverse transformation in the physical nondimensional variables. This is not an inconsistency; it is a deliberate separation between numerical conditioning of label error and physical meaning of the differential equation.
+
+\begin{conventionbox}[\,: matched observations]
+For every declared labeled-data budget, Module~4 and Module~5 use the identical immutable observation indices and the same $\Ldata$ definition. The PINN receives additional unlabeled collocation coordinates, not additional hidden field values.
+\end{conventionbox}
+
+\section{PDE residual loss}
+\label{sec:pde_loss}
+
+\subsection{Residual normalization}
+
+The two residual equations describe different physical quantities and can have different numerical scales. Define positive characteristic residual scales $S_{R_\psi}$ and $S_{R_\omega}$. The normalized residuals are
+\begin{equation}
+r_\psi=\frac{\Rpsi}{S_{R_\psi}},
+\qquad
+r_\omega=\frac{\Romega}{S_{R_\omega}}.
+\label{eq:normalized_residuals}
+\end{equation}
+The scales are fixed from training information and saved with the run. They may be estimated from declared field, length, and time scales. For representative magnitudes $\Psi$, $U_s$, $L_s$, and $T_s$, dimensional reasoning within the nondimensional model suggests
+\begin{align}
+S_{R_\psi}
+&\sim\max\left(
+\frac{\Psi}{T_s},
+\frac{U_s\Psi}{L_s^2},
+\frac{\eta_{\rm ref}\Psi}{L_s^2},
+\epsilon_s\right),\\
+S_{R_\omega}
+&\sim\max\left(
+\frac{U_s}{L_s^2T_s},
+\frac{U_s^2}{L_s^4},
+\frac{\Psi^2}{L_s^4},
+\frac{\nu_{\rm ref}U_s}{L_s^4},
+\epsilon_s\right),
+\end{align}
+where $\epsilon_s>0$ prevents division by zero. Alternatively, robust root-mean-square magnitudes of the complete residual or its physical terms can be estimated from accepted training cases. The estimator, aggregation rule, and parameter dependence must be frozen before test evaluation.
+
+\subsection{Equation-balanced mean-square residual}
+
+The PDE loss is
+\begin{equation}
+\Lpde
+=\lambda_{f,\psi}\frac{1}{N_f}\sum_{j=1}^{N_f}
+r_\psi(\vect s_j^f)^2
++\lambda_{f,\omega}\frac{1}{N_f}\sum_{j=1}^{N_f}
+r_\omega(\vect s_j^f)^2.
+\label{eq:pde_loss}
+\end{equation}
+The internal coefficients $\lambda_{f,\psi}$ and $\lambda_{f,\omega}$ balance the two equations after normalization. A case-balanced implementation averages over collocation points within each sampled $\vect\mu$ and then across parameter cases.
+
+\subsection{Why mean-square residual is reasonable}
+
+Mean-square residual is nonnegative, differentiable, and penalizes large local defects strongly. It approximates an $L_2$ norm of the strong residual under the collocation sampling distribution. These advantages do not make it a rigorous error estimator. The relationship between residual norm and solution error depends on stability of the PDE, conditions, norms, regularity, and sampling coverage.
+
+\subsection{Averages can hide localized defects}
+
+Suppose the residual is nearly zero over most of $\Omega$ but very large in a thin current sheet occupying a fraction $p\ll1$ of the area. Uniform mean-square sampling weights that sheet approximately by $p$. If the sheet controls reconnection, its physical importance can greatly exceed its area. The remedy is not to abandon uniform coverage, but to supplement it with declared structure-aware or residual-adaptive sampling and to report peak and region-stratified residuals.
+
+\subsection{Strong form and weak form}
+
+Equation~\eqref{eq:pde_loss} uses the \emph{strong form}: the differential equation is evaluated pointwise and requires all classical derivatives. A weak or variational form multiplies the PDE by test functions and integrates, allowing integration by parts to reduce derivative order. Weak-form PINNs can be advantageous for high-order derivatives or limited regularity, but they introduce test spaces and quadrature design. The frozen version-1 implementation begins with the strong form because it follows directly from the project residual contract; a weak-form comparison is a later architectural ablation.
+
+\section{Initial-condition enforcement}
+\label{sec:ic}
+
+\subsection{Why the PDE does not select the trajectory}
+
+Equations~\eqref{eq:psi_pde}--\eqref{eq:definitions} admit many time-dependent solutions. The initial condition specifies which solution corresponds to the chosen island-coalescence experiment and carries the perturbation parameter $A_0$. Without it, the network may minimize residuals with a trivial or unintended solution.
+
+\subsection{Soft initial-condition loss}
+
+At $N_0$ initial points, define normalized errors
+\begin{align}
+e_{0,\psi,k}
+&=\frac{\widehat\psi(x_k^0,y_k^0,0,\vect\mu_k^0)
+-\psi_0(x_k^0,y_k^0;\vect\mu_k^0)}{S_{0,\psi}},\\
+e_{0,U,k}
+&=\frac{\widehat U(x_k^0,y_k^0,0,\vect\mu_k^0)
+-U_0(x_k^0,y_k^0;\vect\mu_k^0)}{S_{0,U}}.
+\end{align}
+The soft loss is
+\begin{equation}
+\Lic
+=\lambda_{0,\psi}\frac{1}{N_0}\sum_k e_{0,\psi,k}^2
++\lambda_{0,U}\frac{1}{N_0}\sum_k e_{0,U,k}^2.
+\label{eq:ic_loss}
+\end{equation}
+This condition is soft because it is encouraged by a penalty but may not be satisfied exactly.
+
+\subsection{Hard initial-condition ansatz}
+
+If the exact initial fields can be evaluated for every parameter sample, one can write
+\begin{align}
+\widehat\psi(x,y,t,\vect\mu)
+&=\psi_0(x,y;\vect\mu)+g(t)\,\mathcal{N}_{\psi,\vect\theta}(x,y,t,\vect\mu),\\
+\widehat U(x,y,t,\vect\mu)
+&=U_0(x,y;\vect\mu)+g(t)\,\mathcal{N}_{U,\vect\theta}(x,y,t,\vect\mu),
+\end{align}
+where $g(0)=0$, for example $g(t)=t/T$ on $[0,T]$. Then the initial condition is satisfied identically for any network weights.
+
+Hard enforcement removes a competing loss and eliminates initial mismatch, but it changes the output parameterization and can alter optimization or scale near $t=0$. It also requires a differentiable, convention-consistent $\psi_0,U_0$ for all sampled parameters. The primary comparison should therefore declare whether it uses soft or hard enforcement and reproduce the choice in controlled ablations.
+
+\subsection{Initial current and vorticity}
+
+Because $J$ and $\omega$ are derived, a correct smooth initial $\psi$ and $U$ implies
+\begin{equation}
+\widehat J_0=-\nabla^2\widehat\psi_0,
+\qquad
+\widehat\omega_0=\nabla^2\widehat U_0.
+\end{equation}
+Sparse value matching may nevertheless produce poor initial derivatives. Optional derivative-aware initial diagnostics should therefore compare $J_0$ and $\omega_0$. Adding their mismatch to training introduces derivative-target physics/data and must be reported as a separate ablation rather than silently folded into the base $\Lic$.
+
+\subsection{Compatibility at $t=0$}
+
+The PDE residual and IC loss meet at the initial surface. If collocation points include $t=0$, an inaccurate or nonsmooth hard ansatz can create large derivative conflicts there. A clean design separately samples the initial surface and the open-time interior $t>0$, then optionally evaluates a dedicated compatibility diagnostic near $t=0$.
+
+\section{Periodic boundary enforcement}
+\label{sec:bc}
+
+\subsection{Hard periodicity through representation}
+
+The recommended primary model inherits Equation~\eqref{eq:periodic_features}. This is hard architectural enforcement of the periodic boundary. In this configuration,
+\begin{equation}
+\Lbc=0
+\end{equation}
+in the optimization objective because the represented function and its derivatives are periodic by construction. Periodicity remains an explicit physics ingredient even though it does not appear as a nonzero penalty.
+
+\subsection{Soft periodic value loss}
+
+For a raw-coordinate ablation, one can define
+\begin{align}
+\mathcal{L}_{x,\mathrm{val}}
+&=\frac{1}{N_{bx}}\sum_b
+\left[
+\frac{\widehat\psi(0,y_b,t_b,\vect\mu_b)-
+\widehat\psi(L_x,y_b,t_b,\vect\mu_b)}{S_\psi}
+\right]^2\\
+&\quad+\frac{1}{N_{bx}}\sum_b
+\left[
+\frac{\widehat U(0,y_b,t_b,\vect\mu_b)-
+\widehat U(L_x,y_b,t_b,\vect\mu_b)}{S_U}
+\right]^2,
+\end{align}
+with an analogous $y$ term.
+
+\subsection{Derivative matching}
+
+The strong residual uses derivatives through fourth order. A value-only seam match does not guarantee those derivatives match. A soft formulation may therefore include normal-derivative penalties such as
+\begin{equation}
+\mathcal{L}_{x,\mathrm{deriv}}
+=\sum_{q\in\{\psi,U\}}
+\frac{1}{N_{bx}}\sum_b
+\left[
+\frac{q_x(0,y_b,t_b,\vect\mu_b)-q_x(L_x,y_b,t_b,\vect\mu_b)}{S_{q_x}}
+\right]^2,
+\end{equation}
+and possibly higher derivatives. This quickly becomes cumbersome, which is another reason to prefer periodic coordinates.
+
+\subsection{Boundary loss definition for the ablation}
+
+When raw coordinates are intentionally tested,
+\begin{equation}
+\Lbc
+=\mathcal{L}_{x,\mathrm{val}}
++\mathcal{L}_{y,\mathrm{val}}
++\lambda_{b,1}
+\left(\mathcal{L}_{x,\mathrm{deriv}}+\mathcal{L}_{y,\mathrm{deriv}}\right).
+\end{equation}
+This ablation should not be mistaken for the primary configuration. The primary data-only and PINN models share hard periodic encoding, so any performance difference is not caused by giving periodic representation only to the PINN.
+
+\section{Gauge and mean constraints}
+\label{sec:gauge}
+
+\subsection{Why the PDE cannot identify a constant in $U$}
+
+Replace $U$ by
+\begin{equation}
+U'(x,y,t,\vect\mu)=U(x,y,t,\vect\mu)+C(t,\vect\mu),
+\end{equation}
+where $C$ is spatially constant. Then $\nabla U'=\nabla U$, $\omega'=\omega$, and every Poisson bracket is unchanged. The local PDE residual is blind to this offset. Data may constrain it at observed points, but sparse data need not eliminate drift everywhere.
+
+\subsection{Soft zero-mean gauge}
+
+At a group $(t_g,\vect\mu_g)$ with periodic quadrature weights $w_q$ satisfying $\sum_qw_q\approx|\Omega|$, define
+\begin{equation}
+\widehat{\average U}_g
+=\frac{1}{|\Omega|}\sum_{q=1}^{N_q}w_q
+\widehat U(x_q,y_q,t_g,\vect\mu_g).
+\end{equation}
+The gauge loss is
+\begin{equation}
+\Lgauge
+=\frac{1}{N_g}\sum_{g=1}^{N_g}
+\left(\frac{\widehat{\average U}_g}{S_U}\right)^2.
+\label{eq:gauge_loss}
+\end{equation}
+
+\subsection{Projection to zero mean}
+
+A differentiable global projection can define
+\begin{equation}
+\widehat U_{\rm projected}(x,y,t,\vect\mu)
+=\widehat U_{\rm raw}(x,y,t,\vect\mu)
+-\widehat{\average U}_{\rm raw}(t,\vect\mu).
+\end{equation}
+This enforces the discrete quadrature mean exactly, but evaluation at one coordinate now depends on a full spatial quadrature. It changes inference cost and the pointwise character of the network. The version-1 primary model therefore uses the soft gauge loss and applies the same zero-mean convention during data preprocessing.
+
+\subsection{Mean magnetic flux}
+
+Integrating Equation~\eqref{eq:psi_pde} over the periodic domain gives
+\begin{equation}
+\frac{\dd}{\dd t}\average{\psi}=0,
+\label{eq:mean_psi_balance}
+\end{equation}
+because the area integrals of a periodic bracket and a Laplacian vanish. An optional constraint is
+\begin{equation}
+\mathcal{L}_{\overline\psi}
+=\frac{1}{N_g}\sum_g
+\left[
+\frac{\widehat{\average\psi}(t_g,\vect\mu_g)
+-\average{\psi_0}(\vect\mu_g)}{S_\psi}
+\right]^2.
+\label{eq:mean_psi_loss}
+\end{equation}
+This constraint catches a global mode that pointwise residual sampling may weakly control.
+
+\section{Global balance constraints}
+\label{sec:global}
+
+\subsection{Why global physics is optional}
+
+The local PDE formally implies its exact integral balances for smooth periodic solutions. With finite collocation, approximate optimization, and finite quadrature, that implication is not automatically realized numerically. An explicit global penalty can emphasize physically important integral behavior. It is optional because it adds cost, correlations among points, and another weighting problem; it can also duplicate information already captured by the local residual.
+
+\subsection{Magnetic and kinetic energy}
+
+Define
+\begin{align}
+E_B(t)&=\frac12\int_\Omega|\nabla\psi|^2\,\dd A,\\
+E_K(t)&=\frac12\int_\Omega|\nabla U|^2\,\dd A,\\
+E(t)&=E_B(t)+E_K(t).
+\end{align}
+These are the nondimensional in-plane magnetic and kinetic energies under the project normalization.
+
+\subsection{Derivation of magnetic-energy change}
+
+Differentiate and integrate by parts periodically:
+\begin{align}
+\frac{\dd E_B}{\dd t}
+&=\int_\Omega\nabla\psi\cdot\nabla\psi_t\,\dd A\\
+&=-\int_\Omega(\nabla^2\psi)\psi_t\,\dd A\\
+&=\int_\Omega J\psi_t\,\dd A.
+\end{align}
+Using $\psi_t=-[U,\psi]-\eta J$,
+\begin{equation}
+\frac{\dd E_B}{\dd t}
+=-\int_\Omega J[U,\psi],\dd A
+-\eta\int_\Omega J^2\,\dd A.
+\label{eq:mag_energy_rate}
+\end{equation}
+The first term transfers energy between magnetic and kinetic reservoirs; the second is resistive dissipation.
+
+\subsection{Derivation of kinetic-energy change}
+
+Because $\omega=\nabla^2U$ and the periodic Laplacian is self-adjoint,
+\begin{equation}
+\frac{\dd E_K}{\dd t}
+=-\int_\Omega U\omega_t\,\dd A.
+\end{equation}
+Insert
+\begin{equation}
+\omega_t=-[U,\omega]+[J,\psi]+\nu\nabla^2\omega.
+\end{equation}
+The integral $\int U[U,\omega]\,\dd A$ vanishes. The cyclic bracket identity gives
+\begin{equation}
+-\int_\Omega U[J,\psi],\dd A
+=+\int_\Omega J[U,\psi],\dd A,
+\end{equation}
+and periodic integration by parts yields
+\begin{equation}
+-\nu\int_\Omega U\nabla^2\omega\,\dd A
+=-\nu\int_\Omega\omega^2\,\dd A.
+\end{equation}
+Therefore
+\begin{equation}
+\frac{\dd E_K}{\dd t}
+=+\int_\Omega J[U,\psi],\dd A
+-\nu\int_\Omega\omega^2\,\dd A.
+\label{eq:kin_energy_rate}
+\end{equation}
+
+\subsection{Total-energy balance}
+
+Adding Equations~\eqref{eq:mag_energy_rate} and \eqref{eq:kin_energy_rate} cancels the internal transfer:
+\begin{equation}
+\boxed{
+\frac{\dd E}{\dd t}
++\eta\int_\Omega J^2\,\dd A
++\nu\int_\Omega\omega^2\,\dd A=0.}
+\label{eq:energy_balance}
+\end{equation}
+For $\eta,\nu\ge0$, total energy is nonincreasing. This is an exact balance for the stated periodic model, not an empirical trend.
+
+\subsection{Energy-balance loss}
+
+For a quadrature group $g$, define predicted energy $\widehat E_g$ and dissipation
+\begin{equation}
+\widehat D_g
+=\eta_g\sum_qw_q\widehat J_q^2
++\nu_g\sum_qw_q\widehat\omega_q^2.
+\end{equation}
+AD through the grouped energy gives $\pd_t\widehat E_g$. The normalized defect is
+\begin{equation}
+r_{E,g}
+=\frac{\pd_t\widehat E_g+\widehat D_g}{S_E/T_s},
+\end{equation}
+and
+\begin{equation}
+\mathcal{L}_E=\frac{1}{N_g}\sum_gr_{E,g}^2.
+\label{eq:energy_loss}
+\end{equation}
+Quadrature resolution must be sufficient for $J^2$ and $\omega^2$, which can be sharply localized.
+
+\subsection{Mean-square flux balance}
+
+Multiply Equation~\eqref{eq:psi_pde} by $\psi$ and integrate:
+\begin{equation}
+\boxed{
+\frac{\dd}{\dd t}\left(\frac12\int_\Omega\psi^2\,\dd A\right)
++\eta\int_\Omega|\nabla\psi|^2\,\dd A=0.}
+\label{eq:psi2_balance}
+\end{equation}
+The bracket contribution vanishes because $\psi[U,\psi]=[U,\psi^2/2]$. This balance is an optional second global diagnostic or loss.
+
+\subsection{Composite global loss}
+
+A declared global term can be
+\begin{equation}
+\Lglobal
+=\lambda_g^{U}\Lgauge
++\lambda_g^{\overline\psi}\mathcal{L}_{\overline\psi}
++\lambda_g^E\mathcal{L}_E
++\lambda_g^{\psi^2}\mathcal{L}_{\psi^2}.
+\label{eq:global_loss}
+\end{equation}
+The primary recommended ladder begins with gauge and mean-flux constraints, then adds energy only after quadrature and high-derivative checks pass. Every added component receives an ablation; otherwise an improvement cannot be assigned to a particular physical statement.
+
+\begin{warningbox}[\,: quadrature consistency]
+A global loss computed on too coarse a grid can penalize quadrature error rather than physical error. Convergence of each integral with respect to quadrature resolution is an acceptance test, not an optional plotting detail.
+\end{warningbox}
+
+\section{The composite physics-informed objective}
+\label{sec:objective}
+
+\subsection{Top-level loss}
+
+The documented objective is
+\begin{equation}
+\boxed{
+\Ltotal
+=w_{\rm data}\Ldata
++w_{\rm PDE}\Lpde
++w_{\rm IC}\Lic
++w_{\rm BC}\Lbc
++w_{\rm global}\Lglobal.}
+\label{eq:total_loss}
+\end{equation}
+All weights are nonnegative. The periodic-encoding primary model has $\Lbc=0$ because the condition is hard. The data-free ablation has $w_{\rm data}=0$. The Module~4 baseline has every physics weight equal to zero.
+
+\subsection{A weighted sum is a multi-objective compromise}
+
+Each loss represents a different objective. A single $\vect\theta$ may not minimize all of them simultaneously, especially with limited capacity, noisy data, discretization error, or inconsistent constraints. The weighted sum selects a compromise. Weights are therefore part of the scientific method, not cosmetic numerical constants.
+
+\subsection{Raw loss equality is not balance}
+
+Suppose $\Ldata=10^{-4}$ and $\Lpde=10^{-1}$. It does not follow that $w_{\rm PDE}$ should be $10^{-3}$. Parameter updates depend on
+\begin{equation}
+\nabla_{\vect\theta}\Ltotal
+=\sum_k w_k\nabla_{\vect\theta}\mathcal{L}_k,
+\end{equation}
+not on loss values alone. A small loss can possess a large gradient, and gradients from two terms can oppose one another. Gradient norms, directions, and validation behavior must be monitored \cite{Wang2021Gradients,Wang2022NTK}.
+
+\subsection{Recommended residual-first scaling hierarchy}
+
+A defensible sequence is:
+\begin{enumerate}[label=\arabic*.]
+  \item nondimensionalize the physical equations consistently;
+  \item inverse-transform neural outputs before physics evaluation;
+  \item normalize each complete residual equation by one declared characteristic scale;
+  \item normalize condition and global defects by physical field or rate scales;
+  \item begin with order-one top-level weights;
+  \item monitor per-term loss, gradient norm, validation error, and physical diagnostics;
+  \item tune or adapt weights using training/validation information only; and
+  \item freeze the selected protocol before final test cases are opened.
+\end{enumerate}
+
+\subsection{Fixed weights}
+
+Fixed weights are easiest to reproduce and interpret. They are appropriate when nondimensionalization and residual scales already yield compatible optimization. A log-spaced sweep can test sensitivity. Report the full response surface rather than only the best combination, because broad stability is stronger evidence than a narrow favorable setting.
+
+\subsection{Gradient-based adaptive weights}
+
+An adaptive method can compare statistics of $\|\nabla_{\vect\theta}\mathcal{L}_k\|$ and adjust weights so that no term is persistently ignored. Such methods address gradient imbalance but add algorithmic state and hyperparameters. Weights must be bounded away from zero; otherwise the optimizer can appear successful by suppressing a difficult physical constraint. Weight histories are mandatory outputs.
+
+\subsection{Lagrange multipliers and augmented objectives}
+
+Penalty methods only encourage constraints. A constrained-optimization view introduces Lagrange multipliers, and an augmented Lagrangian combines multiplier updates with quadratic penalties. This can enforce constraints more systematically than one fixed penalty, but it is more complex and can be unstable with stochastic batches. It is an advanced ablation after the basic residual and scaling implementation is verified.
+
+\subsection{Uncertainty-style weighting}
+
+Some multi-task methods learn log-variance parameters that weight losses. This can be useful for heterogeneous observation noise but has no automatic physical interpretation for exact PDE constraints. If used, learned scales must not be advertised as physical uncertainty unless a probabilistic model justifies that interpretation.
+
+\subsection{Weight-selection leakage}
+
+Selecting weights using final test error is data leakage. Use training behavior and held-out validation cases. After the loss protocol is frozen, test cases estimate generalization. The same principle applies to adaptive-sampling thresholds, curriculum stages, optimizer switching, and stopping criteria.
+
+\section{Collocation sampling}
+\label{sec:sampling}
+
+\subsection{Sampling defines the residual norm actually minimized}
+
+The exact continuous ideal would integrate squared residual over space, time, and parameters:
+\begin{equation}
+\int_{\mathcal{P}}\int_0^T\int_\Omega
+\left(r_\psi^2+r_\omega^2\right)
+\rho(x,y,t,\vect\mu)\,\dd A\,\dd t\,\dd\vect\mu,
+\end{equation}
+where $\mathcal{P}$ is the parameter domain and $\rho$ is a chosen sampling density. The empirical $\Lpde$ is a Monte Carlo or quasi-Monte Carlo approximation of this integral. Therefore the point distribution is part of the objective. Uniform, time-biased, current-sheet-biased, and adaptive samplers do not minimize the same weighted norm unless importance corrections are applied.
+
+\subsection{Uniform random sampling}
+
+Independent uniform points provide broad unbiased coverage of a rectangular domain. They are easy to resample, but random clustering and gaps can occur. In high-dimensional space-time-parameter domains, a finite sample may leave important regions nearly untouched.
+
+\subsection{Stratified, Latin-hypercube, and low-discrepancy designs}
+
+Stratification divides the domain into bins and samples within each bin. Latin-hypercube sampling spreads one-dimensional projections. Low-discrepancy sequences such as Sobol points seek more even coverage than independent random samples. These methods can improve space filling, but none guarantees resolution of an unknown localized current sheet.
+
+\subsection{Sampling in the parameter domain}
+
+There are two distinct choices:
+\begin{enumerate}[label=\arabic*.]
+  \item sample collocation points only at the parameter vectors of training cases; or
+  \item sample continuously between training parameter vectors.
+\end{enumerate}
+The first choice enforces physics on known training trajectories and is the conservative primary experiment. The second asks the network to satisfy the PDE throughout a continuous parameter volume even where no solver trajectory is labeled. It is scientifically attractive, but valid only when the initial-condition function and all parameter-dependent conventions are defined there. It must be reported as an additional source of unlabeled information.
+
+Test parameter combinations remain untouched by supervised selection and final scoring. Continuous physics sampling may geometrically include their values if the declared training parameter domain includes them; whether this is allowed must be stated before the split is constructed. For the clearest held-out-case comparison, the first implementation restricts collocation parameters to the training-case set.
+
+\subsection{Time sampling and causality}
+
+A global space-time PINN can reduce residual at later times while representing earlier dynamics poorly. Evolution problems are causally ordered: the initial state determines subsequent states. Time curricula begin with an early interval and expand it only after achieving declared criteria. Time-window or sequence-to-sequence training fits successive intervals while transferring the preceding terminal state. Such approaches can improve difficult dynamical PINNs, but they change the optimization protocol and must be applied consistently across parameter cases \cite{Krishnapriyan2021,Wang2024Causal}.
+
+For the coalescence problem, time sampling should distinguish at least:
+\begin{itemize}
+  \item the initial transient;
+  \item pre-sheet evolution;
+  \item current-sheet formation and reconnection; and
+  \item post-coalescence relaxation.
+\end{itemize}
+The exact phase boundaries must come from Module~2 diagnostics, not visual guesswork.
+
+\subsection{Residual-based adaptive refinement}
+
+Residual-based adaptive refinement (RAR) evaluates the current PINN on a candidate pool, selects high-residual locations, and adds or oversamples them in later training \cite{Lu2021DeepXDE}. A simple cycle is:
+\begin{enumerate}[label=\arabic*.]
+  \item train for a declared number of updates;
+  \item evaluate $r_\psi^2+r_\omega^2$ on a fixed candidate pool;
+  \item select a declared number or quantile of high-residual points;
+  \item merge them with a persistent uniform base set; and
+  \item continue training while saving the sampling history.
+\end{enumerate}
+Keeping a uniform base prevents the sampler from abandoning low-residual regions. Candidate-pool size and evaluation cost count toward training cost.
+
+\subsection{Physics-aware structure sampling}
+
+If accepted training trajectories are available, one can oversample locations with large $|J|$, $|\nabla J|$, vorticity, or reconnection activity. This uses derived information from training data and is not label-free in the broadest sense, even when target values are not placed in the loss. The same structure sampler should be available to the Module~4 control in a separate data-sampling ablation if the scientific claim concerns physics loss rather than privileged point selection.
+
+\subsection{Importance weighting}
+
+If points are drawn from a biased density $q$ but the desired norm uses density $\rho$, an importance-weighted estimator uses factors $\rho/q$. Without them, the model deliberately minimizes a reweighted residual. Reweighting may be desirable, but it must be named. Very large importance weights increase variance and may destabilize training.
+
+\subsection{Resampling versus fixed points}
+
+Fixed collocation points make runs exactly comparable but allow memorization of the sampled residual. Resampling explores more of the continuum but changes the meaning of an epoch. The recommended configuration stores fixed validation collocation sets and resamples a portion of the training collocation batch each update or epoch. This separates optimization sampling from an unchanged residual diagnostic.
+
+\section{Optimization and training curriculum}
+\label{sec:training}
+
+\subsection{Why direct full training is risky}
+
+The full parameterized objective couples supervised fitting, two nonlinear PDEs, high derivatives, an initial surface, a gauge, and optional integrals. Failure of a single full run does not reveal which ingredient is wrong. Module~5 therefore proceeds through a staged curriculum in which each new source of complexity is verified before the next is added.
+
+\subsection{Stage 0: derivative and sign unit tests}
+
+Before training, evaluate AD on analytic functions with known derivatives. Required checks include:
+\begin{itemize}
+  \item first through fourth derivatives of periodic Fourier modes;
+  \item $J=-\nabla^2\psi$ and $\omega=\nabla^2U$;
+  \item bracket antisymmetry and $[f,f]=0$;
+  \item the exactly decaying mode in Section~\ref{sec:worked};
+  \item scaling-chain-rule factors for every transformed coordinate and output; and
+  \item nonzero gradient flow from each active residual to network weights.
+\end{itemize}
+
+\subsection{Stage 1: single-case data warm start}
+
+Fix one verified moderate-parameter case. Initialize the Module~5 network from the matched Module~4 checkpoint or train briefly using only $\Ldata$. A warm start is not mandatory, but it helps distinguish residual debugging from learning the gross field representation. Comparisons should include both warm-started and from-scratch variants if initialization is scientifically important.
+
+\subsection{Stage 2: initial condition, gauge, and magnetic equation}
+
+Activate $\Lic$, $\Lgauge$, and $\Rpsi$ before $\Romega$. The flux equation requires at most second spatial derivatives and is therefore the simpler physical branch. Check that residual loss decreases, the initial condition remains accurate, and no field channel degrades catastrophically.
+
+\subsection{Stage 3: full vorticity equation}
+
+Activate $\Romega$ at a small declared weight, monitor fourth derivatives, then increase its contribution according to a frozen schedule or gradient-balancing rule. Nonfinite derivatives, exploding gradient norms, or an immediate collapse to oversmoothed fields are stop conditions for debugging, not signals to continue a long production run.
+
+\subsection{Stage 4: time curriculum}
+
+Train first on $t\in[0,T_1]$. After validation criteria are satisfied, expand to $T_2>T_1$ until $T$. Alternatively, use overlapping windows. Save the boundaries, overlap, checkpoint transfer rule, and per-window stopping criterion. The data-only comparator can still evaluate the same full interval; this optimization change is allowed but its cost and tuning must be disclosed.
+
+\subsection{Stage 5: parameterized network}
+
+Introduce multiple $(\eta,\nu,A_0)$ training cases only after single-case residuals and balances pass. Use case-balanced batches. Begin with a compact parameter range containing interpolation cases, then expand deliberately. Extrapolation is never inferred from training loss; it is measured on predeclared held-out cases.
+
+\subsection{Stage 6: optional global and adaptive components}
+
+Add mean-flux and energy constraints, adaptive collocation, or adaptive weighting one at a time. Each produces a new model identifier and ablation row. A large bundle of simultaneous improvements may yield a strong predictor but cannot reveal which component mattered.
+
+\subsection{Adam and quasi-Newton refinement}
+
+Adam supplies stochastic first-order updates and works naturally with resampled mini-batches. Limited-memory BFGS (L-BFGS) approximates second-order curvature and is often used to refine PINNs after Adam. L-BFGS is most reproducible with deterministic full or fixed large batches because its line search assumes a stable objective. The optimizer transition, batch freezing, tolerance, maximum evaluations, and best-checkpoint rule must be saved.
+
+\subsection{Gradient clipping and nonfinite handling}
+
+Gradient clipping can prevent one unstable update from destroying a checkpoint, but persistent clipping can conceal a fundamental scaling problem. Log the unclipped and clipped norms. If a loss or derivative becomes NaN or infinite, stop, save the offending batch and checkpoint, and isolate the first nonfinite operation. Silently skipping bad batches biases sampling and makes reproduction difficult.
+
+\subsection{Early stopping}
+
+Stopping on total training loss alone favors whichever weighted objective is easiest. Use a declared validation score that includes held-out field error and physical diagnostics, or use a Pareto rule that prevents major deterioration in one required quantity. The final test set is never used for early stopping.
+
+\subsection{Repeated random seeds}
+
+PINN training can be strongly seed-sensitive. The minimum report contains the median, dispersion, and failure count across a frozen seed set, not only the best run. A model that is excellent once and unstable otherwise is operationally different from a consistently moderate model.
+
+\section{Gradient diagnostics and optimization pathology}
+\label{sec:gradients}
+
+\subsection{Per-term gradient norms}
+
+For active component $k$, define
+\begin{equation}
+g_k=\left\|\nabla_{\vect\theta}\left(w_k\mathcal{L}_k\right)\right\|_2.
+\end{equation}
+Track $g_k$ before summing gradients. A component with $g_k$ many orders of magnitude below the others may be ignored even when its raw loss is large. A component with a huge $g_k$ may destroy data accuracy or destabilize updates.
+
+\subsection{Gradient conflict}
+
+For two components $i,j$, the cosine
+\begin{equation}
+c_{ij}=
+\frac{\nabla\mathcal{L}_i\cdot\nabla\mathcal{L}_j}
+{\|\nabla\mathcal{L}_i\|_2\|\nabla\mathcal{L}_j\|_2+\epsilon}
+\end{equation}
+measures alignment. A negative value means the local descent directions conflict. Conflict can be legitimate when noisy or discretized observations do not satisfy the continuous PDE exactly. It is evidence to investigate scales and model discrepancy, not proof that either term is wrong.
+
+\subsection{Layerwise gradients}
+
+Aggregate norms can hide vanishing gradients in early layers and large gradients near the output. Track representative layerwise statistics. High-order residuals can produce severe imbalance because repeated differentiation changes frequency and magnitude sensitivity.
+
+\subsection{Neural tangent perspective}
+
+During training, different outputs, coordinates, and loss terms may converge at different rates because the network's local kernel spectrum favors certain modes. This helps explain why one residual term or low-frequency structure can be learned while a high-frequency current sheet remains inaccurate. The practical conclusion is not that every run requires a full kernel eigendecomposition, but that raw loss weighting alone cannot guarantee balanced convergence \cite{Wang2022NTK}.
+
+\subsection{Loss landscape stiffness}
+
+Transport, diffusion, and nonlinear coupling can introduce very different characteristic scales. Their derivatives with respect to the weights create a stiff optimization landscape: stable progress along one direction may require steps too small to move effectively along another. Curriculum regularization, time windows, normalization, adaptive weights, and architecture changes address different manifestations of this problem; none is universally sufficient \cite{Wang2021Gradients,Krishnapriyan2021}.
+
+\section{What the PINN can and cannot learn from physics}
+\label{sec:interpretation}
+
+\subsection{Physics narrows an admissible function class}
+
+Sparse field observations alone can be fitted by many continuous functions. The PDE residual penalizes candidates whose local derivatives do not follow the stated dynamics. Initial and boundary information further narrows the family. This is the intuitive source of potential data efficiency.
+
+\subsection{Collocation points are not new truth values}
+
+At a collocation coordinate, the network generates both the field and its equation defect. No independent solver value is supplied. Thus collocation can add information about allowable derivatives without revealing the reference trajectory directly. It cannot correct an incorrect physical model.
+
+\subsection{The zero-solution and trivial-solution danger}
+
+Homogeneous PDE residuals may admit simple low-amplitude solutions with small residual. The initial condition and data prevent collapse to those solutions. If the loss overweights PDE residual before the IC is learned, optimization may prefer an easy trivial field.
+
+\subsection{Smoothness bias versus current sheets}
+
+A smooth MLP and mean-square residual often represent broad low-frequency fields more easily than localized steep gradients. Resistive MHD keeps the mathematical solution smooth at finite $\eta$, but the current sheet may still be thin compared with the global domain. Smoothness is therefore not physically wrong, yet excessive smoothness can suppress peak current and reconnection rate.
+
+\subsection{Parameter dependence is not guaranteed interpolation}
+
+Because $\eta$ and $\nu$ enter the residual, the network knows how the equation coefficients change. It still must represent how the solution changes, including nonlinear shifts in reconnection time and sheet thickness. Physics conditioning can help, but sparse parameter sampling can leave multiple functions compatible with sampled residual and condition points.
+
+\subsection{Model discrepancy becomes central with M3D-C1}
+
+Synthetic Module~2 data are generated from the same reduced equations used in Module~5, up to numerical error. Genuine M3D-C1 output may contain density evolution, pressure dynamics, anisotropic transport, two-fluid effects, three-dimensional geometry, and closures absent from the reduced model. Forcing a simplified residual too strongly can then degrade fidelity. Module~7 must treat residual weight as a model-discrepancy tradeoff and cannot assume that more reduced-MHD enforcement is better.
+
+\section{Failure modes and their signatures}
+\label{sec:failure}
+
+\subsection{Wrong sign convention}
+
+\textbf{Signature:} one residual remains large on analytic tests or accepted solver fields; energy transfer fails to cancel.\\
+\textbf{Diagnosis:} evaluate bracket and current signs on manufactured Fourier modes.\\
+\textbf{Response:} correct the implementation; do not tune weights around a sign error.
+
+\subsection{Broken scaling chain rule}
+
+\textbf{Signature:} data fit is accurate but residual magnitude changes incorrectly when input scaling is modified.\\
+\textbf{Diagnosis:} compare AD derivatives with analytic derivatives under known affine scaling.\\
+\textbf{Response:} form the residual from raw-coordinate, inverse-transformed outputs inside one graph.
+
+\subsection{Inadequate activation smoothness}
+
+\textbf{Signature:} second or higher derivatives are zero, undefined, noisy, or framework-dependent.\\
+\textbf{Diagnosis:} derivative unit tests on a randomly initialized network.\\
+\textbf{Response:} use a smooth activation; do not rely on ReLU for the direct strong form.
+
+\subsection{Loss-term domination}
+
+\textbf{Signature:} one component decreases while another stalls or increases; its gradient norm dominates.\\
+\textbf{Diagnosis:} per-term and layerwise gradient histories.\\
+\textbf{Response:} revisit physical scaling, weights, curriculum, or gradient balancing.
+
+\subsection{Collocation undercoverage}
+
+\textbf{Signature:} training residual is low but dense-grid validation residual has hot spots, often near the sheet.\\
+\textbf{Diagnosis:} fixed dense residual maps and convergence with $N_f$.\\
+\textbf{Response:} add uniform coverage, stratification, or controlled adaptive refinement.
+
+\subsection{Residual overfitting}
+
+\textbf{Signature:} residual is small at fixed training points and much larger at independently sampled points.\\
+\textbf{Diagnosis:} never-reused validation collocation set.\\
+\textbf{Response:} resample training points, increase coverage, or regularize representation.
+
+\subsection{Incorrect gauge}
+
+\textbf{Signature:} velocity is accurate but $U$ contains drifting spatial offsets; PDE residual is unaffected.\\
+\textbf{Diagnosis:} track $\average{U}(t,\vect\mu)$.\\
+\textbf{Response:} apply the frozen zero-mean preprocessing and gauge loss.
+
+\subsection{Trivial low-amplitude solution}
+
+\textbf{Signature:} PDE residual becomes small while IC and data mismatch remain high.\\
+\textbf{Diagnosis:} field amplitude and IC histories.\\
+\textbf{Response:} warm start, prioritize IC early, or use a hard IC ansatz.
+
+\subsection{Derivative accuracy failure}
+
+\textbf{Signature:} $\psi,U$ contours are plausible but $J,\omega$ and residuals are poor.\\
+\textbf{Diagnosis:} spectral and derivative-field metrics.\\
+\textbf{Response:} improve representation, sampling, precision, or consider a declared mixed/weak formulation ablation.
+
+\subsection{Quadrature aliasing or under-resolution}
+
+\textbf{Signature:} energy defect changes substantially with global quadrature resolution.\\
+\textbf{Diagnosis:} integral convergence study on the same checkpoint.\\
+\textbf{Response:} raise quadrature resolution or remove the unverified global term.
+
+\subsection{Reference-model inconsistency}
+
+\textbf{Signature:} accurate data fitting and low continuous residual cannot be achieved simultaneously, especially at fine scales.\\
+\textbf{Diagnosis:} compute a continuous/discrete residual floor for accepted reference trajectories.\\
+\textbf{Response:} quantify discretization error, refine the solver, or introduce an explicitly modeled discrepancy instead of arbitrarily changing loss weights.
+
+\subsection{Causal failure}
+
+\textbf{Signature:} later-time fit appears reasonable while earlier dynamics or initial propagation is wrong.\\
+\textbf{Diagnosis:} time-resolved errors and residuals, not aggregate averages.\\
+\textbf{Response:} use early-time weighting, causal curriculum, or time windows.
+
+\subsection{False extrapolation confidence}
+
+\textbf{Signature:} smooth predictions outside the training parameter/time domain are mistaken for evidence of validity.\\
+\textbf{Diagnosis:} explicit convex-hull/distance labels and held-out solver cases.\\
+\textbf{Response:} report extrapolation separately and avoid claims beyond measured domains.
+
+\section{Diagnostics during training}
+\label{sec:diagnostics}
+
+The following histories should be saved at a common evaluation cadence:
+\begin{itemize}
+  \item total loss and every unweighted and weighted component;
+  \item $R_\psi$ and $R_\omega$ mean, root-mean-square, maximum, and quantiles;
+  \item per-component parameter-gradient norms and selected gradient cosines;
+  \item IC value errors and derivative diagnostics;
+  \item periodic seam defects even with hard encoding, as an implementation check;
+  \item $\average{U}$ and $\average{\psi}-\average{\psi_0}$;
+  \item magnetic, kinetic, and total energy plus balance defect;
+  \item complete validation-case errors for $\psi,U,J,\omega$;
+  \item peak current and reconnection diagnostics when Module~2 freezes them;
+  \item collocation distribution summaries and adaptive points;
+  \item learning rate, loss weights, gradient clipping, precision, and optimizer state; and
+  \item wall time, accelerator memory, coordinate evaluations, and derivative evaluations.
+\end{itemize}
+
+Training loss is an optimization record. Scientific accuracy is determined on complete unseen fields in Module~6. The two must not be collapsed into a single curve.
+
+\section{Controlled experiments and ablations}
+\label{sec:experiments}
+
+\subsection{Information ladder}
+
+The primary ablation ladder is
+\begin{align}
+\text{A: }&\Ldata,\\
+\text{B: }&\Ldata+w_{\rm PDE}\Lpde,\\
+\text{C: }&\Ldata+w_{\rm PDE}\Lpde+w_{\rm IC}\Lic,\\
+\text{D: }&\text{C plus periodic enforcement and gauge},\\
+\text{E: }&\text{D}+w_{\rm global}\Lglobal.
+\end{align}
+Model A is Module~4. With hard periodic features shared by both models, periodic representation is already controlled; model D specifically tests the remaining gauge or a raw-coordinate boundary ablation.
+
+\subsection{Data-budget curves}
+
+For each fixed labeled budget $B_d$, train Module~4 and Module~5 using identical observations. Useful budgets include fractions of cases, snapshots per case, spatial points per snapshot, and both fields versus one field. These axes are not interchangeable and should be varied separately when feasible.
+
+\subsection{Collocation-budget curves}
+
+At fixed $B_d$, vary $N_f$ and report accuracy versus both collocation count and compute. If improvement saturates, additional residual evaluations may not be economical. If dense-grid residual remains poor, the sampler or representation may be inadequate.
+
+\subsection{Loss-weight sensitivity}
+
+Perform a log-scale sweep of $w_{\rm PDE}$ and, after that choice is understood, selected IC/global weights. Report field error, derivative error, residual, and training stability jointly. A one-dimensional ``best weight'' chosen by field error alone can conceal physical degradation.
+
+\subsection{Soft versus hard conditions}
+
+Compare periodic encoding with raw-coordinate soft matching only as a dedicated representation experiment. Compare soft IC with a hard IC ansatz while holding the base network capacity approximately fixed. Do not attribute the combined effect of new representation and new loss to ``the PDE.''
+
+\subsection{Uniform versus adaptive collocation}
+
+Use the same initial uniform points, candidate pool, adaptation cadence, and added-point budget across seeds. Report candidate-evaluation cost. Evaluate both strategies on the same fixed dense residual set.
+
+\subsection{From-scratch versus warm-started PINN}
+
+Warm starting from Module~4 may improve stability but uses the data-only optimization as additional compute. Report total combined training cost. If the warm-started model is the primary operational choice, compare it with a data-only model allowed a similarly transparent tuning/training budget.
+
+\subsection{Single-case versus parameterized}
+
+First show that a single-case PINN can reproduce one trajectory. Then quantify the additional error and cost of sharing one network across parameter cases. Success on a single fixed case is not evidence of parameter generalization.
+
+\subsection{Interpolation versus extrapolation}
+
+Held-out cases inside the training parameter envelope test interpolation. Cases outside it test extrapolation. Report them separately. Physics can improve extrapolation in some regimes but does not remove the need for measured evidence.
+
+\subsection{Statistical reporting}
+
+For every primary comparison, predeclare seeds and report median, interquartile range or standard deviation, best/worst only as supplements, and the number of failed runs. A paired seed design can reduce noise when initializations are matched between models.
+
+\section{Worked analytic example: a decaying magnetic mode}
+\label{sec:worked}
+
+\subsection{Exact solution}
+
+Let
+\begin{align}
+\psi(x,y,t)
+&=A\cos(k_xx)\cos(k_yy)e^{-\eta k^2t},\\
+U(x,y,t)&=0,
+\end{align}
+where $k^2=k_x^2+k_y^2$ and $k_xL_x$, $k_yL_y$ are integer multiples of $2\pi$. Then
+\begin{equation}
+\nabla^2\psi=-k^2\psi,
+\qquad
+J=k^2\psi,
+\qquad
+\omega=0.
+\end{equation}
+Because $U=0$, the advection bracket vanishes. Since $J$ is proportional to $\psi$,
+\begin{equation}
+[J,\psi]=k^2[\psi,\psi]=0.
+\end{equation}
+Finally,
+\begin{equation}
+\psi_t=-\eta k^2\psi=\eta\nabla^2\psi.
+\end{equation}
+Therefore $\Rpsi=\Romega=0$ exactly.
+
+\subsection{A prediction with the wrong decay rate}
+
+Suppose a network represents the correct spatial form but predicts
+\begin{equation}
+\widehat\psi=A\cos(k_xx)\cos(k_yy)e^{-\alpha t}
+\end{equation}
+with $\alpha\ne\eta k^2$. Then
+\begin{equation}
+\Rpsi=(\eta k^2-\alpha)\widehat\psi.
+\label{eq:wrong_decay_residual}
+\end{equation}
+Sparse data at one time may not identify $\alpha$ accurately. Collocation across time directly penalizes the incorrect evolution rate.
+
+\subsection{Energy balance for the mode}
+
+The magnetic energy is
+\begin{equation}
+E_B(t)=\frac12\int_\Omega|\nabla\psi|^2\,\dd A.
+\end{equation}
+It decays as $e^{-2\eta k^2t}$. Since $J=k^2\psi$, Equation~\eqref{eq:energy_balance} reduces to
+\begin{equation}
+\frac{\dd E_B}{\dd t}+\eta\int_\Omega J^2\,\dd A=0.
+\end{equation}
+This provides simultaneous unit tests for time derivative, Laplacian sign, current definition, residual construction, periodic encoding, and energy quadrature.
+
+\subsection{A gauge-invisible error}
+
+Now let $\widehat U=C(t)$ while retaining the exact $\psi$. Every spatial derivative of $\widehat U$ is zero, so $\widehat\omega=0$, $[\widehat U,\widehat\psi]=0$, and both PDE residuals remain zero. Yet $\average{\widehat U}=C(t)$ violates the project gauge unless $C=0$. This proves why local residuals cannot replace the gauge constraint.
+
+\subsection{A small field error with a large current error}
+
+Add a high-wavenumber perturbation
+\begin{equation}
+e_\psi=\epsilon\cos(Kx).
+\end{equation}
+The value error amplitude is $\epsilon$, but
+\begin{equation}
+e_J=-\nabla^2e_\psi=\epsilon K^2\cos(Kx).
+\end{equation}
+Thus a visually negligible flux ripple can dominate current error and high-order PDE derivatives. Value, derivative, residual, and spectral diagnostics are all necessary.
+
+\section{Recommended version-1 specification}
+\label{sec:specification}
+
+\begin{conventionbox}[\,: primary Module 5 starting point]
+\begin{itemize}
+  \item \textbf{Map:} $(x,y,t,\eta,\nu,A_0)\mapsto(\widehat\psi,\widehat U)$.
+  \item \textbf{Architecture:} Module~4 MLP family, six hidden $\tanh$ layers of width 128, linear two-output head.
+  \item \textbf{Periodicity:} hard sine-cosine encoding in $x$ and $y$ shared with Module~4; $\Lbc=0$ in the primary objective.
+  \item \textbf{Preprocessing:} training-only input/output transforms inherited from Module~4; inverse-transform outputs inside the raw-coordinate AD graph before residual construction.
+  \item \textbf{State:} $J=-\nabla^2\psi$ and $\omega=\nabla^2U$ derived, never independent stored predictions.
+  \item \textbf{Data:} identical labeled indices and $\Ldata$ as Module~4.
+  \item \textbf{Physics:} normalized $\Rpsi$ and $\Romega$ at case-balanced collocation points.
+  \item \textbf{IC:} soft value enforcement first; hard-IC ansatz as a declared ablation after Module~2 freezes the exact formula.
+  \item \textbf{Gauge:} soft quadrature zero-mean $U$ constraint.
+  \item \textbf{Global:} mean-$\psi$ constraint first; energy and mean-square-flux balances only after quadrature convergence.
+  \item \textbf{Sampling:} collocation parameters restricted initially to training cases; broad uniform/low-discrepancy base with fixed validation collocation set.
+  \item \textbf{Training:} derivative tests, single case, flux residual, full vorticity residual, time curriculum, then parameterized cases.
+  \item \textbf{Optimization:} Adam first; deterministic L-BFGS refinement only after a stable fixed objective is established.
+  \item \textbf{Reporting:} repeated seeds, all component/gradient histories, complete held-out fields, physical diagnostics, and full compute cost.
+\end{itemize}
+\end{conventionbox}
+
+No numerical learning rate, batch size, collocation count, or loss weight is frozen in this physics note because the solver dataset and measured scales do not yet exist. Inventing precise values before Module~2 and Module~3 are complete would create false specificity. The implementation note must select them through documented single-case tests and validation studies.
+
+\section{Implementation sequence and acceptance tests}
+\label{sec:acceptance}
+
+\subsection{Implementation sequence}
+
+\begin{enumerate}[label=\textbf{M5.\arabic*.}]
+  \item Load the frozen Module~3 transforms, case manifests, and Module~4 observation lists.
+  \item Implement raw-coordinate periodic features and inverse-transformed outputs in one differentiable model wrapper.
+  \item Implement reusable derivative functions through fourth order.
+  \item Implement $\widehat J$, $\widehat\omega$, brackets, $\Rpsi$, and $\Romega$ with named intermediate arrays.
+  \item Implement separate data, collocation, IC, boundary-ablation, gauge, and global group loaders.
+  \item Implement normalized component losses and per-term gradient diagnostics.
+  \item Pass analytic manufactured-function tests before any learned case.
+  \item Train one fixed case through the staged curriculum.
+  \item Compare dense neural residuals with the accepted reference residual floor.
+  \item Train the parameterized model on frozen complete training cases.
+  \item Run the ablation and data-efficiency matrix.
+  \item Hand complete checkpoints and logs to Module~6 for final validation.
+\end{enumerate}
+
+\subsection{Mandatory analytic tests}
+
+\begin{itemize}
+  \item Fourier derivatives through fourth order agree with analytic values within precision-appropriate tolerance.
+  \item Periodic feature values and derivatives match across both seams.
+  \item Bracket antisymmetry and $[f,f]=0$ pass.
+  \item Decaying-mode $\Rpsi$ and $\Romega$ approach numerical precision.
+  \item Wrong-decay test reproduces Equation~\eqref{eq:wrong_decay_residual}.
+  \item A constant $U$ offset leaves PDE residuals unchanged but is detected by $\Lgauge$.
+  \item Every active loss produces a finite, nonzero gradient with respect to relevant weights on a nontrivial manufactured example.
+\end{itemize}
+
+\subsection{Mandatory numerical tests}
+
+\begin{itemize}
+  \item Residual results are invariant, after correct transformation, to an equivalent change of input/output standardization.
+  \item Collocation batching agrees with an unbatched calculation on a small fixed set.
+  \item Case-balanced averaging is unchanged when points from one case are duplicated.
+  \item Global integrals converge with quadrature resolution.
+  \item Checkpoint reload reproduces predictions, losses, weights, and transforms.
+  \item Resampling is reproducible from stored seeds and does not alter fixed validation points.
+  \item Automatic differentiation precision and memory benchmarks are recorded.
+\end{itemize}
+
+\subsection{Acceptance criteria before production parameter sweeps}
+
+The first production parameterized run may begin only when:
+\begin{enumerate}[label=\arabic*.]
+  \item Module~2 cases have passed solver verification and convergence checks;
+  \item Module~3 has frozen schema, splits, units, normalization, and IC formulas;
+  \item Module~4 observation budgets and baseline checkpoint protocol are frozen;
+  \item all analytic residual tests pass;
+  \item one single-case PINN reaches stable finite losses on independent collocation points;
+  \item IC, periodicity, gauge, and energy diagnostics are internally consistent;
+  \item high-order derivatives remain finite at the selected precision;
+  \item test cases have not been used for loss weights, sampling rules, or stopping; and
+  \item the run configuration completely determines reproduction.
+\end{enumerate}
+
+\subsection{Minimum run artifacts}
+
+Each run directory stores:
+\begin{itemize}
+  \item configuration and source revision;
+  \item case/split manifest and immutable observation indices;
+  \item all preprocessing and residual scales;
+  \item model architecture and parameter count;
+  \item initial and final checkpoints plus the selected best checkpoint;
+  \item collocation generator, seed, fixed validation set, and adaptive history;
+  \item optimizer, schedule, precision, batch sizes, update count, and stopping rule;
+  \item loss weights and their histories;
+  \item component losses, gradients, validation metrics, physical histories, and residual maps;
+  \item hardware, software versions, wall time, peak memory, and failure status; and
+  \item claim label: single-case synthetic PINN or parameterized synthetic reduced-MHD PINN.
+\end{itemize}
+
+\section{Common misconceptions}
+\label{sec:misconceptions}
+
+\subsection{``A small PDE residual proves the prediction is accurate''}
+
+No. The residual is sampled, conditions may be imperfect, and stability may not convert a small sampled residual into a small solution error. Compare with complete accepted reference solutions.
+
+\subsection{``Automatic differentiation differentiates the true solution''}
+
+AD differentiates the neural approximation exactly up to floating-point effects. It does not correct approximation error.
+
+\subsection{``Collocation points are free data''}
+
+They require no solver labels, but high-order derivative evaluation consumes substantial compute and memory. They are label-free, not cost-free.
+
+\subsection{``Equal loss values mean equal influence''}
+
+Updates depend on gradients with respect to weights. Equal scalar losses can produce radically different gradient magnitudes and directions.
+
+\subsection{``Each PDE term can be standardized independently''}
+
+Doing so changes physical coefficients and cancellations. Normalize the completed residual, not its constituent terms separately.
+
+\subsection{``Periodic endpoint values are sufficient''}
+
+The strong PDE needs derivative periodicity. Hard periodic features are the clean primary representation.
+
+\subsection{``The PDE determines the constant part of $U$''}
+
+It does not. Only spatial derivatives of $U$ enter. The zero-mean gauge must be imposed or checked separately.
+
+\subsection{``More physics weight always means more physical output''}
+
+Excessive weight can cause oversmoothing, poor data fit, trivial solutions, or failed optimization. Physicality is measured with independent diagnostics.
+
+\subsection{``The global energy law replaces the local PDE''}
+
+Many incorrect fields share the same total energy. A global balance supplements local dynamics; it cannot specify spatial structure.
+
+\subsection{``A single-case PINN is already a surrogate over parameters''}
+
+It represents one fixed trajectory. Parameterized generalization begins only when $\eta,\nu,A_0$ are inputs and complete combinations are held out.
+
+\subsection{``Time as an input guarantees forecasting''}
+
+Predictions inside the time interval used by training or collocation are interpolation within a global representation. Forecasting requires evaluation beyond the informed interval.
+
+\subsection{``The PINN must beat the numerical solver''}
+
+The initial goal is a reusable surrogate after training, not a universal replacement for a verified solver. Training may cost more than one reference run. Break-even depends on the number and type of future queries.
+
+\subsection{``This is now an M3D-C1 surrogate''}
+
+No. It is a PINN constrained by a synthetic two-field reduced-MHD model in an M3D-C1-shaped workflow. Genuine M3D-C1 data and model-discrepancy validation are absent.
+
+\section{Module 5 computational contract}
+\label{sec:contract}
+
+\subsection{Input-output contract}
+
+\begin{align}
+\text{Raw input: }&\vect s=(x,y,t,\eta,\nu,A_0),\\
+\text{processed input: }&\vect z=(\vect p(x,y),\widetilde t,\widetilde\eta,\widetilde\nu,\widetilde A_0),\\
+\text{primary outputs: }&(\widehat\psi,\widehat U),\\
+\text{derived outputs: }&\widehat J=-\nabla^2\widehat\psi,
+\quad\widehat\omega=\nabla^2\widehat U.
+\end{align}
+
+\subsection{Physics contract}
+
+Residuals use Equations~\eqref{eq:rpsi} and \eqref{eq:romega} exactly, on raw nondimensional coordinates and inverse-transformed fields. Periodicity is hard encoded. The gauge is $\average U=0$. Mean $\psi$ is case-consistent. Global balance signs follow Equations~\eqref{eq:energy_balance} and \eqref{eq:psi2_balance}.
+
+\subsection{Data and split contract}
+
+Only verified Module~2 cases accepted by Module~3 may enter. Complete parameter combinations define train, validation, and test. The Module~5 labeled points are identical to Module~4 for each data budget. Scaling statistics never use validation or test cases.
+
+\subsection{Loss contract}
+
+Every component, normalization scale, top-level weight, internal channel weight, and adaptation rule is named and saved. No term may be removed from logging merely because its top-level weight is zero. Test data never select weights.
+
+\subsection{Evaluation contract}
+
+Module~6 evaluates complete unseen fields for $\psi,U,J,\omega$; dense PDE residuals; IC, periodicity, gauge, and global balances; reconnection diagnostics; interpolation/extrapolation; repeated seeds; and compute. Training loss alone is not an acceptance metric.
+
+\subsection{Fairness contract}
+
+The primary Module~4 versus Module~5 comparison holds fixed case splits, labels, preprocessing, periodic representation, architecture family, data loss, validation metrics, and seed policy. Additional collocation, derivative cost, optimizer changes, and tuning budgets are disclosed. Results are reported under labeled-data fairness and compute fairness as separate axes.
+
+\section{Summary and bridge to Module 6}
+\label{sec:summary}
+
+Module~5 constructs the project's first actual physics-informed neural network. The network retains the Module~4 map
+\begin{equation}
+(x,y,t,\eta,\nu,A_0)\mapsto(\widehat\psi,\widehat U)
+\end{equation}
+and the same labeled observations. Automatic differentiation produces $\widehat J$, $\widehat\omega$, and the two reduced-MHD residuals. The training objective combines supervised data with local dynamics, the initial condition, periodic representation, gauge information, and optional global balance laws.
+
+The vorticity equation is the central technical difficulty: direct $(\psi,U)$ output requires third derivatives in nonlinear brackets and fourth derivatives in viscous diffusion. Smooth activations, correct chain-rule scaling, verified signs, sufficient precision, and staged training are therefore mandatory. The local PDE cannot determine the spatially constant part of $U$, so the zero-mean gauge is a genuine independent constraint. Periodic encoding enforces the boundary structurally and is shared with Module~4.
+
+Loss construction is a multi-objective problem. Complete physical residuals are formed before normalization; raw loss equality is not gradient balance; and test cases may not tune weights. Collocation design determines which residual norm is approximated. Uniform coverage, independent validation points, time-aware sampling, and controlled adaptive refinement protect against residual hot spots and current-sheet under-resolution.
+
+The PINN is not assumed to be superior. Its value is established only if Module~6 finds reproducible improvement in accuracy, derivative fidelity, data efficiency, generalization, or physical admissibility relative to the strong Module~4 baseline, with added compute reported. A negative or mixed result remains scientifically valid.
+
+\clearpage
+\appendix
+
+\section{Compact derivation ledger}
+\label{app:derivations}
+
+\subsection{Expanded derived fields}
+
+\begin{align}
+J&=-\psi_{xx}-\psi_{yy},\\
+J_x&=-\psi_{xxx}-\psi_{xyy},\\
+J_y&=-\psi_{xxy}-\psi_{yyy},\\
+\omega&=U_{xx}+U_{yy},\\
+\omega_x&=U_{xxx}+U_{xyy},\\
+\omega_y&=U_{xxy}+U_{yyy},\\
+\nabla^2\omega&=U_{xxxx}+2U_{xxyy}+U_{yyyy}.
+\end{align}
+For sufficiently smooth $U$, mixed derivatives commute, such as $U_{xxyy}=U_{yyxx}$.
+
+\subsection{Expanded residual ledger}
+
+\begin{align}
+\Rpsi={}&\psi_t+U_x\psi_y-U_y\psi_x
+-\eta(\psi_{xx}+\psi_{yy}),\\
+\Romega={}&(U_{xxt}+U_{yyt})
++U_x(U_{xxy}+U_{yyy})
+-U_y(U_{xxx}+U_{xyy})\\
+&-(-\psi_{xxx}-\psi_{xyy})\psi_y
++(-\psi_{xxy}-\psi_{yyy})\psi_x\\
+&-\nu(U_{xxxx}+2U_{xxyy}+U_{yyyy}).
+\end{align}
+The compact $J,\omega$ implementation is easier to audit than directly coding this final expansion, but the expansion is useful for derivative-order and sign tests.
+
+\subsection{Periodic integral identities}
+
+For smooth periodic $f$,
+\begin{equation}
+\int_\Omega\nabla^2f\,\dd A=0.
+\end{equation}
+For smooth periodic $f,g,h$,
+\begin{align}
+\int_\Omega[f,g]\,\dd A&=0,\\
+\int_\Omega f[g,h]\,\dd A
+&=\int_\Omega g[h,f]\,\dd A.
+\end{align}
+These follow by expressing the bracket as a divergence and applying periodic cancellation.
+
+\subsection{Why advection conserves $\int\psi^2/2$}
+
+\begin{equation}
+\psi[U,\psi]=[U,\psi^2/2],
+\end{equation}
+whose periodic integral is zero. Diffusion gives
+\begin{equation}
+\eta\int_\Omega\psi\nabla^2\psi\,\dd A
+=-\eta\int_\Omega|\nabla\psi|^2\,\dd A.
+\end{equation}
+
+\section{Loss and sampling ledger}
+\label{app:lossledger}
+
+\begin{longtable}{p{0.17\textwidth}p{0.29\textwidth}p{0.23\textwidth}p{0.20\textwidth}}
+\toprule
+Component & Information used & Point population & Primary status \\
+\midrule
+\endfirsthead
+\toprule
+Component & Information used & Point population & Primary status \\
+\midrule
+\endhead
+$\Ldata$ & stored $\psi,U$ values & labeled observations & active \\
+$\Lpde$ & local RMHD equations & interior collocation & active \\
+$\Lic$ & known $t=0$ fields & initial surface & active, soft first \\
+$\Lbc$ & periodic equality & boundary pairs & zero under hard encoding \\
+$\Lgauge$ & $\average U=0$ & grouped quadrature & active \\
+$\mathcal{L}_{\overline\psi}$ & conserved mean flux & grouped quadrature & recommended \\
+$\mathcal{L}_E$ & total-energy balance & grouped quadrature & optional after verification \\
+$\mathcal{L}_{\psi^2}$ & mean-square flux balance & grouped quadrature & optional \\
+\bottomrule
+\end{longtable}
+
+\section{Symbol table}
+\label{app:symbols}
+
+\small
+\begin{longtable}{p{0.18\textwidth}p{0.51\textwidth}p{0.20\textwidth}}
+\toprule
+Symbol & Meaning & Status or units \\
+\midrule
+\endfirsthead
+\toprule
+Symbol & Meaning & Status or units \\
+\midrule
+\endhead
+$x,y$ & Cartesian coordinates in the periodic plane & dimensionless \\
+$t,T$ & time and final modeled time & dimensionless \\
+$L_x,L_y$ & spatial periods & dimensionless \\
+$\Omega$ & periodic spatial domain & set \\
+$\vect\mu$ & parameter vector $(\eta,\nu,A_0)$ & dimensionless \\
+$\eta$ & magnetic diffusivity & dimensionless \\
+$\nu$ & kinematic viscosity & dimensionless \\
+$A_0$ & initial perturbation amplitude parameter & dimensionless \\
+$\psi,\widehat\psi$ & reference and predicted magnetic-flux functions & dimensionless \\
+$U,\widehat U$ & reference and predicted stream functions & dimensionless \\
+$J,\widehat J$ & current variables, $-\nabla^2\psi$ & dimensionless \\
+$\omega,\widehat\omega$ & vorticities, $\nabla^2U$ & dimensionless \\
+$[f,g]$ & Poisson bracket $f_xg_y-f_yg_x$ & differential operator \\
+$\mathcal{N}_{\vect\theta}$ & neural field representation & function \\
+$\vect\theta$ & all trainable weights and biases & numerical vector \\
+$\vect s$ & raw input $(x,y,t,\eta,\nu,A_0)$ & dimensionless entries \\
+$\vect z$ & processed network features & numerical vector \\
+$\vect p$ & periodic sine-cosine spatial features & numerical vector \\
+$\widetilde q$ & standardized version of quantity $q$ & numerical \\
+$S_q$ & characteristic scale for quantity $q$ & same units as $q$ \\
+$\Rpsi$ & magnetic-flux PDE residual & rate-like \\
+$\Romega$ & vorticity PDE residual & rate-like \\
+$r_\psi,r_\omega$ & normalized PDE residuals & dimensionless \\
+$\Ldata$ & supervised field-value loss & scalar \\
+$\Lpde$ & PDE collocation loss & scalar \\
+$\Lic$ & initial-condition loss & scalar \\
+$\Lbc$ & boundary-condition loss & scalar \\
+$\Lgauge$ & zero-mean stream-function loss & scalar \\
+$\Lglobal$ & composite global-physics loss & scalar \\
+$\Ltotal$ & complete training objective & scalar \\
+$w_k,\lambda_k$ & top-level and internal loss weights & nonnegative \\
+$N_d$ & number of labeled observations & integer \\
+$N_f$ & number of interior collocation points & integer \\
+$N_0$ & number of initial-condition points & integer \\
+$N_g$ & number of global quadrature groups & integer \\
+$N_q$ & spatial nodes per quadrature group & integer \\
+$w_q$ & spatial quadrature weight & area-like \\
+$E_B,E_K,E$ & magnetic, kinetic, and total energy & dimensionless integral \\
+$D$ & resistive plus viscous dissipation rate & dimensionless rate \\
+$g_k$ & parameter-gradient norm for loss component $k$ & numerical \\
+$c_{ij}$ & cosine between two loss gradients & $[-1,1]$ \\
+$\epsilon,\epsilon_s$ & declared numerical floor & positive scalar \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Acronym and terminology table}
+\label{app:acronyms}
+
+\begin{longtable}{p{0.23\textwidth}p{0.67\textwidth}}
+\toprule
+Term & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Term & Meaning \\
+\midrule
+\endhead
+AD & Automatic differentiation; chain-rule differentiation of a computational graph \\
+Adam & Adaptive Moment Estimation optimizer \\
+BC & Boundary condition \\
+Collocation point & Coordinate-parameter point where a differential residual is evaluated without a field target \\
+Curriculum & Training schedule that introduces harder times, terms, or parameter ranges progressively \\
+Data efficiency & Accuracy achieved for a declared amount of labeled information \\
+Data-free PINN & PINN trained from equations and conditions without interior field labels \\
+Gauge & Convention fixing a physically redundant degree of freedom, here the spatial constant in $U$ \\
+Hard constraint & Condition satisfied by the representation for every value of the weights \\
+Hybrid PINN & PINN trained using both observed values and physical constraints \\
+IC & Initial condition \\
+L-BFGS & Limited-memory Broyden-Fletcher-Goldfarb-Shanno quasi-Newton optimizer \\
+MHD & Magnetohydrodynamics \\
+MLP & Multilayer perceptron \\
+MSE & Mean squared error \\
+PDE & Partial differential equation \\
+PINN & Physics-informed neural network \\
+Quadrature & Numerical approximation of an integral by weighted samples \\
+RAR & Residual-based adaptive refinement of collocation points \\
+Residual & Defect obtained after moving every PDE term to one side \\
+RMHD & Reduced magnetohydrodynamics; the exact reduction and conventions must be stated \\
+Soft constraint & Condition encouraged by a finite loss penalty but not guaranteed exactly \\
+Strong form & Pointwise differential equation requiring classical derivatives \\
+Weak form & Integral statement tested against functions, often after integration by parts \\
+Warm start & Initialization from weights trained on a related objective, here the Module~4 data-only checkpoint \\
+\bottomrule
+\end{longtable}
+
+\section{Concept questions and answer sketches}
+\label{app:questions}
+
+\subsection*{Questions}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item What exact change turns the Module~4 model into a PINN?
+  \item Why do collocation points not count as interior field labels?
+  \item Write $\Rpsi$ and $\Romega$ with the project signs.
+  \item Why does the direct vorticity residual require fourth derivatives of $U$?
+  \item What does AD differentiate exactly?
+  \item Why must inverse output scaling occur before PDE evaluation?
+  \item Why is independent scaling of advection and diffusion terms physically dangerous?
+  \item What is the difference between soft and hard periodic enforcement?
+  \item Why is $\average U=0$ not implied by the local PDE?
+  \item What information does $A_0$ carry into the parameterized PINN?
+  \item Why can a small average residual miss an important current sheet?
+  \item Why are equal raw loss values not evidence of balanced training?
+  \item What does a negative gradient cosine indicate?
+  \item Derive the sign of resistive dissipation in the total-energy balance.
+  \item Why is a global energy law insufficient to determine a field?
+  \item Why should the flux equation be debugged before the vorticity equation?
+  \item What is the role of a fixed validation collocation set?
+  \item Why does continuous time output not automatically constitute forecasting?
+  \item What must be fixed for a fair Module~4 versus Module~5 comparison?
+  \item What M3D-C1 claim is justified by completing this module on synthetic data?
+\end{enumerate}
+
+\subsection*{Answer sketches}
+
+\begin{enumerate}[label=\textbf{A\arabic*.}]
+  \item A declared physical residual or constraint affects the architecture or training objective and therefore the learned weights.
+  \item They provide coordinates and parameters only; the target signal is equation satisfaction computed from the prediction, not an independent reference value.
+  \item $R_\psi=\psi_t+[U,\psi]-\eta\nabla^2\psi$ and $R_\omega=\omega_t+[U,\omega]-[J,\psi]-\nu\nabla^2\omega$.
+  \item $\omega=\nabla^2U$, so $\nabla^2\omega=\nabla^4U$ contains fourth spatial derivatives.
+  \item It differentiates the implemented neural computational graph, not the unknown true physical solution.
+  \item Coordinate and output scales multiply derivatives through the chain rule; omitting them changes the residual coefficients and units.
+  \item The physical equation depends on cancellation of terms with fixed relative coefficients. Independent normalization changes that equation.
+  \item A soft penalty allows mismatch; periodic features make the represented smooth function periodic for every set of weights.
+  \item Adding a spatial constant to $U$ changes no derivative, velocity, vorticity, bracket, or local residual.
+  \item It parameterizes the initial perturbation and therefore selects different trajectories within the case family.
+  \item A thin sheet occupies little area and contributes little to a uniform average despite controlling peak current and reconnection.
+  \item Weight updates depend on gradients of the losses, whose magnitudes and directions need not follow scalar loss values.
+  \item Their local descent directions oppose each other, possibly because of scale imbalance, finite capacity, noise, or model discrepancy.
+  \item Integration by parts gives $\eta\int J\nabla^2\psi=-\eta\int J^2$ under $J=-\nabla^2\psi$; the total balance contains $+\eta\int J^2$ on the left and hence energy decay.
+  \item Many spatially incorrect fields can share the same integral energy and energy history.
+  \item It reaches only second spatial derivatives, whereas the vorticity branch contains third and fourth derivatives and stronger nonlinear coupling.
+  \item It detects residual overfitting to training collocation points and provides an unchanged physics metric for model selection.
+  \item Evaluating arbitrary $t$ inside an interval already informed by data/collocation is interpolation in a global coordinate representation; forecasting is beyond that interval.
+  \item Case splits, labels, preprocessing, periodic representation, architecture family, data loss, seeds, and scoring; added collocation, optimization, and compute are disclosed.
+  \item Only a physics-informed surrogate of the stated synthetic two-field reduced-MHD family in an M3D-C1-shaped workflow, not a validated surrogate of M3D-C1.
+\end{enumerate}
+
+\clearpage
+\begin{thebibliography}{99}
+
+\bibitem{Raissi2019}
+M. Raissi, P. Perdikaris, and G. E. Karniadakis,
+``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,''
+\emph{Journal of Computational Physics} \textbf{378}, 686--707 (2019),
+\url{https://doi.org/10.1016/j.jcp.2018.10.045}.
+
+\bibitem{Karniadakis2021}
+G. E. Karniadakis, I. G. Kevrekidis, L. Lu, P. Perdikaris, S. Wang, and L. Yang,
+``Physics-informed machine learning,''
+\emph{Nature Reviews Physics} \textbf{3}, 422--440 (2021),
+\url{https://doi.org/10.1038/s42254-021-00314-5}.
+
+\bibitem{Baydin2018}
+A. G. Baydin, B. A. Pearlmutter, A. A. Radul, and J. M. Siskind,
+``Automatic differentiation in machine learning: a survey,''
+\emph{Journal of Machine Learning Research} \textbf{18}, 1--43 (2018),
+\url{https://jmlr.org/papers/v18/17-468.html}.
+
+\bibitem{Wang2021Gradients}
+S. Wang, Y. Teng, and P. Perdikaris,
+``Understanding and mitigating gradient flow pathologies in physics-informed neural networks,''
+\emph{SIAM Journal on Scientific Computing} \textbf{43}, A3055--A3081 (2021),
+\url{https://doi.org/10.1137/20M1318043}.
+
+\bibitem{Wang2022NTK}
+S. Wang, X. Yu, and P. Perdikaris,
+``When and why PINNs fail to train: A neural tangent kernel perspective,''
+\emph{Journal of Computational Physics} \textbf{449}, 110768 (2022),
+\url{https://doi.org/10.1016/j.jcp.2021.110768}.
+
+\bibitem{Krishnapriyan2021}
+A. S. Krishnapriyan, A. Gholami, S. Zhe, R. M. Kirby, and M. W. Mahoney,
+``Characterizing possible failure modes in physics-informed neural networks,''
+in \emph{Advances in Neural Information Processing Systems 34} (2021),
+\url{https://proceedings.neurips.cc/paper/2021/hash/df438e5206f31600e6ae4af72f2725f1-Abstract.html}.
+
+\bibitem{Wang2024Causal}
+S. Wang, S. Sankaran, and P. Perdikaris,
+``Respecting causality for training physics-informed neural networks,''
+\emph{Computer Methods in Applied Mechanics and Engineering} \textbf{421}, 116813 (2024),
+\url{https://doi.org/10.1016/j.cma.2024.116813}.
+
+\bibitem{Lu2021DeepXDE}
+L. Lu, X. Meng, Z. Mao, and G. E. Karniadakis,
+``DeepXDE: A deep learning library for solving differential equations,''
+\emph{SIAM Review} \textbf{63}, 208--228 (2021),
+\url{https://doi.org/10.1137/19M1274067}.
+
+\bibitem{Sukumar2022}
+N. Sukumar and A. Srivastava,
+``Exact imposition of boundary conditions with distance functions in physics-informed deep neural networks,''
+\emph{Computer Methods in Applied Mechanics and Engineering} \textbf{389}, 114333 (2022),
+\url{https://doi.org/10.1016/j.cma.2021.114333}.
+
+\bibitem{Jagtap2020XPINN}
+A. D. Jagtap and G. E. Karniadakis,
+``Extended physics-informed neural networks (XPINNs): A generalized space-time domain decomposition based deep learning framework for nonlinear partial differential equations,''
+\emph{Communications in Computational Physics} \textbf{28}, 2002--2041 (2020),
+\url{https://doi.org/10.4208/cicp.OA-2020-0164}.
+
+\bibitem{Moseley2023FBPINN}
+B. Moseley, A. Markham, and T. Nissen-Meyer,
+``Finite basis physics-informed neural networks (FBPINNs): a scalable domain decomposition approach for solving differential equations,''
+\emph{Advances in Computational Mathematics} \textbf{49}, 62 (2023),
+\url{https://doi.org/10.1007/s10444-023-10065-9}.
+
+\end{thebibliography}
+
+\end{document}
