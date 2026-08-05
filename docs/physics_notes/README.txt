@@ -18,6 +18,10 @@ Completed:
   - module5_physics_informed_surrogate.pdf
   - module5_physics_informed_surrogate.tex
 
+- Summary slides for Modules 1, 4, and 5
+  - modules1_4_5_summary_slides.pdf
+  - modules1_4_5_summary_slides.tex
+
 Build Module 1 from this directory with:
 
   pdflatex module1_reduced_resistive_mhd_physics_and_conventions.tex
@@ -32,6 +36,11 @@ Build Module 5 from this directory with:
 
   pdflatex module5_physics_informed_surrogate.tex
   pdflatex module5_physics_informed_surrogate.tex
+
+Build the Module 1, 4, and 5 summary slides from this directory with:
+
+  pdflatex modules1_4_5_summary_slides.tex
+  pdflatex modules1_4_5_summary_slides.tex
 
 The repository-level scripts/build_docs.sh builds the project plan and all
 completed physics-note PDFs, then removes LaTeX intermediate files.

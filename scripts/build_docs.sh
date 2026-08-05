@@ -18,6 +18,7 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error project_plan.tex
   latexmk -pdf -interaction=nonstopmode -halt-on-error module1_reduced_resistive_mhd_physics_and_conventions.tex
   latexmk -pdf -interaction=nonstopmode -halt-on-error module4_data_only_surrogate_baseline.tex
   latexmk -pdf -interaction=nonstopmode -halt-on-error module5_physics_informed_surrogate.tex
+  latexmk -pdf -interaction=nonstopmode -halt-on-error modules1_4_5_summary_slides.tex
 )
 
 # A successful TeX process should still leave a structurally readable PDF.
@@ -27,6 +28,7 @@ if command -v pdfinfo >/dev/null 2>&1; then
   pdfinfo docs/physics_notes/module1_reduced_resistive_mhd_physics_and_conventions.pdf >/dev/null
   pdfinfo docs/physics_notes/module4_data_only_surrogate_baseline.pdf >/dev/null
   pdfinfo docs/physics_notes/module5_physics_informed_surrogate.pdf >/dev/null
+  pdfinfo docs/physics_notes/modules1_4_5_summary_slides.pdf >/dev/null
 fi
 cleanup_latex_intermediates
 trap - EXIT

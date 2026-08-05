@@ -1,0 +1,428 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{booktabs,array}
+\usepackage{xcolor}
+
+\definecolor{TitleBlue}{HTML}{163A5F}
+\definecolor{AccentTeal}{HTML}{2D6F73}
+\definecolor{DeepNavy}{HTML}{102A43}
+\definecolor{SoftBlue}{HTML}{EAF3F8}
+\definecolor{SoftTeal}{HTML}{EDF8F6}
+\definecolor{SoftGray}{HTML}{F4F6F8}
+\definecolor{BodyGray}{HTML}{243B53}
+\definecolor{WarningRed}{HTML}{9B2C2C}
+
+\setbeamercolor{normal text}{fg=BodyGray,bg=white}
+\setbeamercolor{frametitle}{fg=TitleBlue,bg=white}
+\setbeamercolor{structure}{fg=AccentTeal}
+\setbeamercolor{block title}{fg=white,bg=TitleBlue}
+\setbeamercolor{block body}{fg=BodyGray,bg=SoftBlue}
+\setbeamercolor{block title alerted}{fg=white,bg=WarningRed}
+\setbeamercolor{block body alerted}{fg=BodyGray,bg=SoftGray}
+\setbeamercolor{block title example}{fg=white,bg=AccentTeal}
+\setbeamercolor{block body example}{fg=BodyGray,bg=SoftTeal}
+
+\setbeamerfont{normal text}{size=\fontsize{16}{20}\selectfont}
+\setbeamerfont{frametitle}{size=\fontsize{35}{39}\selectfont,series=\bfseries}
+\setbeamerfont{block title}{size=\fontsize{17}{20}\selectfont,series=\bfseries}
+\setbeamerfont{block body}{size=\fontsize{15.5}{19}\selectfont}
+\setbeamerfont{footline}{size=\fontsize{10}{12}\selectfont}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\color{AccentTeal}$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{AccentTeal}$\bullet$}
+\setlength{\leftmargini}{1.25em}
+\setlength{\leftmarginii}{1.15em}
+\setlength{\parskip}{0.05em}
+
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\average}[1]{\left\langle #1\right\rangle}
+\newcommand{\Rpsi}{R_{\psi}}
+\newcommand{\Romega}{R_{\omega}}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\currentmodule}{Module 1}
+\newcommand{\moduleprogress}{1 of 6}
+\newcommand{\setmodule}[2]{%
+  \renewcommand{\currentmodule}{#1}%
+  \renewcommand{\moduleprogress}{#2}%
+}
+
+\setbeamertemplate{frametitle}{%
+  \vspace{0.10cm}
+  \usebeamerfont{frametitle}\insertframetitle\par
+  \vspace{-0.25cm}
+  {\color{AccentTeal}\rule{\textwidth}{0.8pt}}
+}
+
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=.42\paperwidth,ht=3.1ex,dp=1.35ex,leftskip=.55cm]{author in head/foot}%
+      \usebeamerfont{footline}\color{TitleBlue}\textbf{PINN\_M3DC1}\hspace{0.6em}|\hspace{0.6em}\currentmodule
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.58\paperwidth,ht=3.1ex,dp=1.35ex,rightskip=.55cm plus1fil]{date in head/foot}%
+      \usebeamerfont{footline}\color{BodyGray}\moduleprogress\hspace{1.0em}\textbullet\hspace{1.0em}Slide \insertframenumber\ of \inserttotalframenumber
+    \end{beamercolorbox}%
+  }
+}
+
+\setbeamersize{text margin left=0.70cm,text margin right=0.70cm}
+\AtBeginDocument{%
+  \setlength{\abovedisplayskip}{0.30em}%
+  \setlength{\belowdisplayskip}{0.30em}%
+  \setlength{\abovedisplayshortskip}{0.20em}%
+  \setlength{\belowdisplayshortskip}{0.20em}%
+}
+\title{Modules 1, 4, and 5 Summary}
+\subtitle{Reduced resistive MHD, data-only surrogate, and physics-informed surrogate}
+\author{PINN\_M3DC1 Project}
+\date{4 August 2026}
+
+\begin{document}
+
+% --------------------------------------------------------------------------
+% Module 1: six slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 1}{1 of 6}
+\begin{frame}{Module 1: Reduced resistive MHD}
+The version-1 model is two-dimensional, incompressible, two-field reduced resistive magnetohydrodynamics on a doubly periodic Cartesian domain:
+\[
+(x,y,t)\in[0,2\pi)\times[0,2\pi)\times[0,T].
+\]
+\[
+\vect{q}(x,y,t)=\bigl(\psi,U\bigr),
+\qquad
+\vect{\mu}=\bigl(\eta,\nu,A_0\bigr).
+\]
+
+\begin{itemize}
+  \item $\psi$ is the magnetic-flux function and $U$ is the flow stream function.
+  \item $\eta$ is magnetic diffusivity, $\nu$ is kinematic viscosity, and $A_0$ sets the initial perturbation.
+  \item The initial trajectories are synthetic reduced-MHD solutions, not genuine M3D-C1 output.
+\end{itemize}
+\end{frame}
+
+\setmodule{Module 1}{2 of 6}
+\begin{frame}{Two potentials define the physical fields}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\textwidth}
+\textbf{Magnetic field}
+\[
+\vect{B}_{\perp}
+=\nabla\psi\times\widehat{\vect{z}}
+=\bigl(\psi_y,-\psi_x\bigr),
+\]
+\[
+J=-\nabla^2\psi.
+\]
+$J$ is the out-of-plane current variable.
+\end{column}
+\begin{column}{0.49\textwidth}
+\textbf{Fluid velocity}
+\[
+\vect{v}_{\perp}
+=\widehat{\vect{z}}\times\nabla U
+=\bigl(-U_y,U_x\bigr),
+\]
+\[
+\omega=\nabla^2U.
+\]
+$\omega$ is the out-of-plane vorticity.
+\end{column}
+\end{columns}
+
+\[
+\nabla\cdot\vect{B}_{\perp}=0,
+\qquad
+\nabla\cdot\vect{v}_{\perp}=0.
+\]
+Thus divergence constraints hold identically. The project predicts $(\psi,U)$ and derives $(J,\omega)$.
+\end{frame}
+
+\setmodule{Module 1}{3 of 6}
+\begin{frame}{The Poisson bracket represents advection}
+\[
+\boxed{\bracket{f}{g}=f_xg_y-f_yg_x.}
+\]
+
+The stream-function velocity converts transport into a bracket:
+\[
+\vect{v}_{\perp}\cdot\nabla f
+=(-U_y)f_x+(U_x)f_y
+=\bracket{U}{f},
+\qquad
+\frac{Df}{Dt}=f_t+\bracket{U}{f}.
+\]
+
+\[
+\bracket{f}{g}=-\bracket{g}{f},
+\qquad
+\int_{\Omega}\bracket{f}{g}\dd A=0,
+\]
+Thus nonlinear brackets redistribute fields and exchange energy, but do not directly dissipate it.
+\end{frame}
+
+\setmodule{Module 1}{4 of 6}
+\begin{frame}{Two PDEs govern the dynamics}
+\begin{align*}
+\boxed{\psi_t+\bracket{U}{\psi}=\eta\nabla^2\psi,}
+\qquad
+\boxed{\omega_t+\bracket{U}{\omega}=\bracket{J}{\psi}+\nu\nabla^2\omega.}
+\end{align*}
+
+\begin{itemize}
+  \item $\bracket{U}{\psi}$ transports magnetic-flux contours with the fluid.
+  \item $\eta\nabla^2\psi=-\eta J$ permits resistive slippage and topology change in current layers.
+  \item $\bracket{U}{\omega}$ transports vorticity, while $\bracket{J}{\psi}$ is magnetic forcing from the Lorentz force.
+  \item $\nu\nabla^2\omega$ smooths vorticity and dissipates kinetic energy.
+\end{itemize}
+
+\end{frame}
+
+\setmodule{Module 1}{5 of 6}
+\begin{frame}{Alfv\'en normalization sets the scales}
+\[
+V_A=\frac{B_0}{\sqrt{\mu_0\rho_0}},
+\qquad
+t_A=\frac{L_0}{V_A}.
+\]
+
+\[
+\eta=\frac{\eta_m}{L_0V_A},
+\qquad
+\nu=\frac{\nu_d}{L_0V_A}.
+\]
+
+\[
+S=\frac{1}{\eta}=\frac{t_\eta}{t_A},
+\qquad
+\mathrm{Re}=\frac{1}{\nu}=\frac{t_\nu}{t_A},
+\qquad
+\mathrm{Pm}=\frac{\nu}{\eta}.
+\]
+
+$S$ and $\mathrm{Re}$ compare resistive and viscous diffusion times with $t_A$. Neural standardization is a later numerical transformation, not physical nondimensionalization.
+\end{frame}
+
+\setmodule{Module 1}{6 of 6}
+\begin{frame}{Periodicity and energy close the model}
+Periodic faces and PDE-required derivatives match. Gauge and mean-flux conditions are
+\[
+\boxed{\average{U}(t)=0,}
+\qquad
+\frac{\mathrm d}{\mathrm dt}\average{\psi}=0.
+\]
+The exact periodic energy law is
+\[
+\boxed{
+\frac{\mathrm d}{\mathrm dt}\frac12\int_{\Omega}
+\left(|\nabla\psi|^2+|\nabla U|^2\right)\dd A
+=-\eta\int_{\Omega}J^2\dd A
+-\nu\int_{\Omega}\omega^2\dd A\le 0.}
+\]
+Finite $\eta$ enables reconnection in current sheets. This is not full M3D-C1 equivalence.
+\end{frame}
+
+% --------------------------------------------------------------------------
+% Module 4: four slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 4}{1 of 4}
+\begin{frame}{Module 4: A data-only field surrogate}
+The parameterized coordinate network approximates a family of fields:
+\[
+\boxed{
+\mathcal N_{\vect\theta}:
+(x,y,t,\eta,\nu,A_0)
+\longmapsto
+\bigl(\widehat\psi,\widehat U\bigr).}
+\]
+
+Data are split by complete parameter cases:
+\[
+\vect\mu_c=(\eta_c,\nu_c,A_{0,c}).
+\]
+\begin{itemize}
+  \item No point from a held-out case enters training or preprocessing.
+  \item Parameter interpolation and extrapolation are separate; interpolation within $t\in[0,T]$ is not forecasting beyond $T$.
+\end{itemize}
+\end{frame}
+
+\setmodule{Module 4}{2 of 4}
+\begin{frame}{Periodic inputs respect the domain}
+\[
+\phi_x=\frac{2\pi x}{L_x},
+\qquad
+\phi_y=\frac{2\pi y}{L_y},
+\]
+\[
+\vect z=
+\bigl(
+\sin\phi_x,\cos\phi_x,
+\sin\phi_y,\cos\phi_y,
+\widetilde t,\widetilde r_\eta,\widetilde r_\nu,\widetilde A_0
+\bigr).
+\]
+
+Smooth functions of $\vect z$ are periodic in value and derivatives. Scaling statistics come from training cases only.
+
+\textbf{Baseline:} six fully connected $\tanh$ layers of width $128$ and a linear two-output head. Module 5 retains the same architecture family and periodic representation.
+\end{frame}
+
+\setmodule{Module 4}{3 of 4}
+\begin{frame}{Training uses labeled field error only}
+For standardized output errors
+\[
+e_{\psi,n}=\widehat{\widetilde\psi}_n-\widetilde\psi_n,
+\qquad
+e_{U,n}=\widehat{\widetilde U}_n-\widetilde U_n,
+\]
+the case-balanced objective is
+\[
+\boxed{
+\mathcal L_{\mathrm{train}}=\mathcal L_{\mathrm{data}}
+=\frac{1}{|\mathcal C_{\mathcal B}|}
+\sum_{c\in\mathcal C_{\mathcal B}}
+\left[
+\frac{1}{N_c}\sum_{n\in c}e_{\psi,n}^2
++\frac{1}{N_c}\sum_{n\in c}e_{U,n}^2
+\right].}
+\]
+
+There is no PDE, initial-condition, boundary-condition, gauge, global-balance, $J$, $\omega$, derivative, or spectral target loss. Adam, mini-batches, regularization, and early stopping are optimization choices; they do not make the model physics-informed.
+\end{frame}
+
+\setmodule{Module 4}{4 of 4}
+\begin{frame}{The baseline makes the PINN testable}
+Evaluation uses complete unseen fields, not training loss alone. For $a\in\{\psi,U,J,\omega\}$,
+\[
+\varepsilon_{L_2}^{(a)}
+=\frac{\|\widehat a-a\|_2}{\|a\|_2+\epsilon}.
+\]
+
+\[
+\widehat J=-\nabla^2\widehat\psi,
+\qquad
+\widehat\omega=\nabla^2\widehat U,
+\]
+Derived fields, energy, reconnection measures, periodicity, and PDE residuals are evaluation-only diagnostics.
+
+\textcolor{WarningRed}{\textbf{Controlled comparison:}} Modules 4 and 5 share splits, labels, preprocessing, periodic encoding, architecture family, data loss, metrics, and seeds. Physics helps only if the matched PINN improves a declared metric, with added compute disclosed.
+\end{frame}
+
+% --------------------------------------------------------------------------
+% Module 5: five slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 5}{1 of 5}
+\begin{frame}{Module 5: PDE residuals enter training}
+The network still predicts $(\widehat\psi,\widehat U)$, while automatic differentiation constructs
+\[
+\widehat J=-\nabla^2\widehat\psi,
+\qquad
+\widehat\omega=\nabla^2\widehat U.
+\]
+
+The local reduced-MHD equation defects are
+\[
+\boxed{
+\Rpsi
+=\widehat\psi_t
++\bracket{\widehat U}{\widehat\psi}
+-\eta\nabla^2\widehat\psi,}
+\]
+\[
+\boxed{
+\Romega
+=\widehat\omega_t
++\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}
+-\nu\nabla^2\widehat\omega.}
+\]
+
+At unlabeled collocation points, the PINN receives no solver field values; it is penalized when these residuals are nonzero.
+\end{frame}
+
+\setmodule{Module 5}{2 of 5}
+\begin{frame}{The objective combines five constraints}
+\[
+\boxed{
+\mathcal L_{\mathrm{total}}
+=w_{\mathrm{data}}\mathcal L_{\mathrm{data}}
++w_{\mathrm{PDE}}\mathcal L_{\mathrm{PDE}}
++w_{\mathrm{IC}}\mathcal L_{\mathrm{IC}}
++w_{\mathrm{BC}}\mathcal L_{\mathrm{BC}}
++w_{\mathrm{global}}\mathcal L_{\mathrm{global}}.}
+\]
+
+\begin{itemize}
+  \item $\mathcal L_{\mathrm{data}}$: the identical labeled observations used by Module 4.
+  \item $\mathcal L_{\mathrm{PDE}}$: normalized mean-square $\Rpsi$ and $\Romega$ at collocation points.
+  \item $\mathcal L_{\mathrm{IC}}$: selects the intended trajectory at $t=0$.
+  \item $\mathcal L_{\mathrm{BC}}=0$ for hard periodicity; $\mathcal L_{\mathrm{global}}$ contains gauge, mean-flux, and optional balances.
+\end{itemize}
+
+\end{frame}
+
+\setmodule{Module 5}{3 of 5}
+\begin{frame}{The vorticity residual reaches fourth order}
+Because $\widehat\omega=\nabla^2\widehat U$,
+\[
+\widehat\omega_t\sim\partial_t\partial_x^2\widehat U,
+\qquad
+\bracket{\widehat U}{\widehat\omega}\sim\partial_x^3\widehat U,
+\qquad
+\nabla^2\widehat\omega=\nabla^4\widehat U.
+\]
+The Lorentz bracket also contains third derivatives of $\widehat\psi$. Therefore smooth activations such as $\tanh$ are required, scaling factors must remain inside the differentiation graph, and derivative precision must be tested.
+
+The PDE cannot identify a spatially constant offset in $U$, so a gauge condition remains necessary:
+\[
+\boxed{\average{\widehat U}(t,\vect\mu)=0.}
+\]
+\end{frame}
+
+\setmodule{Module 5}{4 of 5}
+\begin{frame}{Balances and curricula stabilize training}
+\[
+\boxed{
+\frac{\mathrm d}{\mathrm dt}
+\frac12\int_{\Omega}
+\left(|\nabla\widehat\psi|^2+|\nabla\widehat U|^2\right)\dd A
++\eta\int_{\Omega}\widehat J^2\dd A
++\nu\int_{\Omega}\widehat\omega^2\dd A=0.}
+\]
+
+Collocation defines the residual norm minimized. Uniform coverage may be supplemented by time-aware, structure-aware, or residual-adaptive points; validation points remain fixed.
+
+Training proceeds in stages:
+\[
+\begin{aligned}
+\text{derivative tests}&\rightarrow\text{data warm start}\rightarrow\Rpsi\rightarrow\Romega\\
+&\rightarrow\text{time curriculum}\rightarrow\text{parameterized cases}.
+\end{aligned}
+\]
+Global penalties follow quadrature verification.
+\end{frame}
+
+\setmodule{Module 5}{5 of 5}
+\begin{frame}{Physics must add measurable value}
+Module 6 compares matched models on unseen cases using field errors, residuals, condition defects, global balances, and cost.
+
+\begin{itemize}
+  \item A PINN may improve labeled-data efficiency, derivative fidelity, parameter generalization, or physical admissibility.
+  \item It may also train more slowly, oversmooth current sheets, suffer gradient conflict, or inherit error from an incomplete physical model.
+  \item Reports include repeated seeds, failures, extrapolation, and data-versus-compute fairness.
+\end{itemize}
+
+\textcolor{WarningRed}{\textbf{Scientific conclusion:}} the PINN is not assumed to win. The result remains a surrogate of synthetic two-field reduced-MHD dynamics; an M3D-C1 surrogate requires genuine M3D-C1 data and Module 7.
+\end{frame}
+
+\end{document}
