@@ -21,13 +21,16 @@ reference material.
 The version-0.1 repository backbone is established. Its module registry,
 cross-module state contract, Python/MATLAB directory parity, configuration
 skeleton, scientific claim hierarchy, and reduced-MHD sign conventions are
-documented and tested. The Module 1 reduced-MHD notes, Module 4 data-only
-surrogate-baseline notes, and Module 5 physics-informed-surrogate notes are
-complete under `docs/physics_notes/`. Modules 4 and 5 freeze the controlled
-data-only-versus-PINN experiment before implementation. No numerical MHD solver
-or trained neural surrogate is yet claimed as implemented. The first numerical
-milestone remains Module 2: a verified periodic pseudo-spectral
-island-coalescence solver.
+documented and tested. Physics notes for Modules 1 through 5 are complete under
+`docs/physics_notes/`. Module 2 freezes the periodic island-coalescence case,
+pseudo-spectral numerical method, diagnostics, and verification criteria.
+Module 3 freezes the canonical HDF5 case schema, physical-case identities,
+provenance, whole-case splits, learning-view normalization, versioning, and the
+boundary between M3D-C1-shaped I/O and genuine M3D-C1 equivalence. Modules 4
+and 5 freeze the controlled data-only-versus-PINN experiment before
+implementation. No numerical MHD solver, data pipeline, or trained neural
+surrogate is yet claimed as implemented. The first numerical milestone remains
+Module 2: a verified periodic pseudo-spectral island-coalescence solver.
 
 ## Maintained architecture documents
 
@@ -36,7 +39,7 @@ island-coalescence solver.
 - `docs/project_charter.md` - claims, comparisons, validation rules, and scope
 - `docs/equations_and_conventions.md` - frozen version-1 variables and signs
 - `docs/shared/project_style.tex` - common LaTeX styling
-- `docs/physics_notes/` - module-by-module physics notes; Modules 1, 4, and 5 are complete
+- `docs/physics_notes/` - module-by-module physics notes; Modules 1 through 5 are complete
 - `docs/implementation_notes/` - future module implementation contracts
 
 ## High-level code structure
