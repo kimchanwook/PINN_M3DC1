@@ -1,0 +1,1699 @@
+\documentclass[11pt]{article}
+
+\input{../shared/project_style.tex}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,fit}
+\usepackage{caption}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{upquote}
+
+\definecolor{WarningRed}{HTML}{9B2C2C}
+\definecolor{WarmGold}{HTML}{B7791F}
+\definecolor{PaleGold}{HTML}{FFF8E6}
+\definecolor{PaleRed}{HTML}{FFF1F1}
+\definecolor{DeepGreen}{HTML}{276749}
+\definecolor{Purple}{HTML}{5B3F8C}
+\definecolor{PalePurple}{HTML}{F3EFFA}
+
+\newtcolorbox{definitionbox}[1][]{
+  colback=SoftTeal,colframe=AccentTeal,title={Definition#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{warningbox}[1][]{
+  colback=PaleRed,colframe=WarningRed,title={Important distinction#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{checkpointbox}[1][]{
+  colback=PaleGold,colframe=WarmGold,title={Validation checkpoint#1},
+  fonttitle=\bfseries,boxrule=0.7pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{conventionbox}[1][]{
+  colback=SoftBlue,colframe=TitleBlue,title={Frozen Module 3 convention#1},
+  fonttitle=\bfseries,boxrule=0.9pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{resultbox}[1][]{
+  colback=SoftTeal,colframe=DeepGreen,title={Required result#1},
+  fonttitle=\bfseries,boxrule=0.8pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+\newtcolorbox{adapterbox}[1][]{
+  colback=PalePurple,colframe=Purple,title={M3D-C1 adapter boundary#1},
+  fonttitle=\bfseries,boxrule=0.8pt,arc=2mm,
+  left=3mm,right=3mm,top=2mm,bottom=2mm}
+
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\pd}{\partial}
+\newcommand{\Lap}{\nabla_{\!\perp}^{2}}
+\newcommand{\Laph}{\nabla_{\!\perp,h}^{2}}
+\newcommand{\average}[1]{\left\langle #1\right\rangle}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+\newcommand{\dataset}[1]{\texttt{/#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PINN\_M3DC1}
+\rhead{Module 3 Physics Notes}
+\cfoot{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \lhead{PINN\_M3DC1}%
+  \rhead{Module 3 Physics Notes}%
+  \cfoot{\thepage}%
+}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+\centering
+\vspace*{1.15cm}
+{\Large\color{AccentTeal} PINN\_M3DC1}\par
+\vspace{0.7cm}
+{\Huge\bfseries\color{TitleBlue} Module 3}\par
+\vspace{0.25cm}
+{\LARGE\bfseries\color{TitleBlue} Dataset Contracts and\\M3D-C1-Shaped Input/Output}\par
+\vspace{0.9cm}
+{\large A textbook-style scientific data specification for auditable reduced-MHD surrogate learning}\par
+\vfill
+\begin{tcolorbox}[width=0.90\textwidth,colback=SoftBlue,colframe=TitleBlue,arc=2mm]
+\centering
+\textbf{Module purpose}\par
+\vspace{0.35em}
+Store accepted fields, parameters, coordinates, provenance, whole-case splits, and normalization in explicit versioned schemas while preserving the physical meaning fixed by Modules 1 and 2.
+\end{tcolorbox}
+\vfill
+{\normalsize Version 1.0 \quad | \quad 5 August 2026}\par
+\vspace{0.25cm}
+{\small Physics and data-contract note for the synthetic reduced-MHD proof of concept}\par
+\end{titlepage}
+
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+
+\section*{Preface: why a data contract is part of the physics}
+
+Module~2 produces verified numerical trajectories. Module~3 determines whether those trajectories remain scientifically intelligible after they are written to disk, combined into a dataset, split for learning, transformed for optimization, read by another programming language, and eventually compared with genuine M3D-C1 exports.
+
+A file format alone cannot answer these questions. An array of numbers does not identify which axis is time, whether current means $J=-\Lap\psi$ or $J=+\Lap\psi$, whether the rightmost spatial endpoint is duplicated, whether a field is dimensional or nondimensional, whether a case passed convergence checks, or whether preprocessing used the test set. Those facts determine the scientific meaning of every number. The \textbf{data contract} is the set of rules that makes that meaning explicit and machine-checkable.
+
+The initials \textbf{I/O} mean \emph{input/output}: how information enters and leaves a computational component. \textbf{HDF5} means Hierarchical Data Format version~5, a format that organizes multidimensional datasets, groups, and attributes. \textbf{Schema} means a versioned specification of required names, types, shapes, meanings, and relationships. \textbf{Provenance} means the recorded history of how an artifact was produced. \textbf{Normalization} here can mean either physical nondimensionalization or a later numerical transform for neural-network training; these are different operations and must remain distinguishable.
+
+\begin{warningbox}
+``M3D-C1-shaped'' describes the architecture of the workflow: coordinates, parameters, time-dependent fields, metadata, diagnostics, and an adapter boundary. It does not mean that the synthetic Cartesian variables are numerically equivalent to M3D-C1 variables, that the geometries agree, or that the dataset validates an M3D-C1 surrogate.
+\end{warningbox}
+
+\subsection*{The main dependency chain}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=5mm and 7mm,
+  box/.style={draw=TitleBlue,rounded corners=1.5mm,fill=SoftBlue,align=center,
+              minimum height=11mm,text width=0.27\textwidth,font=\small},
+  arrow/.style={-{Latex[length=2.4mm]},thick,draw=AccentTeal}]
+\node[box] (solver) {Accepted Module 2\\solver realization};
+\node[box, right=of solver] (case) {Immutable canonical\\HDF5 case};
+\node[box, right=of case] (manifest) {Versioned dataset\\manifest and splits};
+\node[box, below=of case] (processed) {Derived learning view\\and train-only scales};
+\draw[arrow] (solver) -- (case);
+\draw[arrow] (case) -- (manifest);
+\draw[arrow] (manifest) -- (processed);
+\draw[arrow] (case) -- (processed);
+\end{tikzpicture}
+\end{center}
+
+The reference case is never overwritten by a preprocessing step. A learning-ready representation is a derived artifact whose parent, transforms, split manifest, and checksums are recorded.
+
+\subsection*{Learning objectives}
+
+After working through this module, the reader should be able to:
+\begin{enumerate}[label=\arabic*.]
+  \item explain why array names and shapes are physical statements rather than clerical details;
+  \item distinguish a physical case, a numerical realization, a snapshot, a grid point, and a supervised example;
+  \item state the exact canonical shapes and meanings of $\psi$, $U$, $J$, and $\omega$;
+  \item explain why the stored reference fields remain unstandardized and immutable;
+  \item design an HDF5 hierarchy that preserves coordinates, fields, parameters, diagnostics, verification, and provenance;
+  \item distinguish required datasets from metadata attributes;
+  \item assign stable identifiers without encoding ambiguous floating-point strings in filenames;
+  \item construct whole-case training, validation, interpolation-test, and extrapolation-test partitions;
+  \item identify leakage caused by pointwise splitting, duplicate realizations, or test-fitted normalization;
+  \item fit and store invertible preprocessing transforms using training cases only;
+  \item flatten field arrays for minibatching without losing reconstruction indices or case balance;
+  \item verify Python--MATLAB axis, dtype, string, and checksum parity;
+  \item decide when a schema change is backward compatible and when it changes scientific meaning;
+  \item describe the explicit translation work required for genuine M3D-C1 data; and
+  \item state precisely which claims a Module~3 dataset can and cannot support.
+\end{enumerate}
+
+\ProjectTOC
+\clearpage
+\pagenumbering{arabic}
+
+\section{Scientific role and acceptance boundary}
+\label{sec:role}
+
+\subsection{The object produced by Module 3}
+
+For a physical parameter vector
+\begin{equation}
+\vect{\mu}_c=(\eta_c,\nu_c,A_{0,c}),
+\end{equation}
+Module~2 approximates a reduced-MHD trajectory. Module~3 creates an auditable dataset
+\begin{equation}
+\mathcal D
+=\left(\mathcal C,\mathcal M,\mathcal S,\mathcal T\right),
+\label{eq:dataset_object}
+\end{equation}
+where
+\begin{itemize}
+  \item $\mathcal C$ is a set of accepted canonical case files;
+  \item $\mathcal M$ is a manifest describing and indexing those files;
+  \item $\mathcal S$ is an immutable whole-case split assignment; and
+  \item $\mathcal T$ is the set of declared, invertible preprocessing transforms.
+\end{itemize}
+
+The manifest is part of the scientific artifact. A directory of HDF5 files without an authoritative index does not define which files belong to a release, which are accepted, or how they are partitioned.
+
+\subsection{Four layers that must not be confused}
+
+\begin{longtable}{p{0.19\textwidth}p{0.34\textwidth}p{0.37\textwidth}}
+\toprule
+Layer & Object & Main question \\
+\midrule
+\endfirsthead
+\toprule
+Layer & Object & Main question \\
+\midrule
+\endhead
+Physical model & Continuous fields and equations & What do $\psi,U,J,\omega,\eta,\nu,A_0$ mean? \\
+Numerical realization & Finite arrays from one solver run & Which grid, time step, integrator, precision, and verification status produced them? \\
+Serialized reference & HDF5 datasets plus metadata & Can another reader reconstruct the same logical arrays and meanings? \\
+Learning view & Selected or transformed examples & Which split, sampling rule, scales, and inverse transforms define the neural task? \\
+\bottomrule
+\end{longtable}
+
+A neural preprocessing choice must not be written back into the physical-model layer. Similarly, changing a field sign cannot be treated as a harmless file-format revision.
+
+\subsection{Acceptance inherited from Module 2}
+
+Module~3 ingests only cases for which the Module~2 acceptance record is complete and true. At minimum, the case must have passed:
+\begin{itemize}
+  \item operator and sign tests;
+  \item analytic or manufactured-solution checks;
+  \item temporal and spatial convergence checks;
+  \item spectral and current-sheet resolution checks;
+  \item energy, periodicity, gauge, and topology checks;
+  \item finite-value and complete-horizon checks; and
+  \item Python--MATLAB parity at the declared level when parity is required for that release.
+\end{itemize}
+
+\begin{checkpointbox}
+The Module~3 validator must fail closed. Missing acceptance metadata means ``not eligible,'' not ``probably accepted.'' A rejected or incomplete case may be retained for debugging, but it cannot appear in an accepted release manifest.
+\end{checkpointbox}
+
+\subsection{What Module 3 does not establish}
+
+Module~3 does not prove that the solver equations are physically adequate for a stellarator, that a neural network has learned them, or that an M3D-C1 export can be interpreted through the same variables. It establishes a trustworthy interface for the stated synthetic model and a place where a future adapter can make every required translation explicit.
+
+\section{Frozen physical semantics}
+\label{sec:semantics}
+
+\subsection{Domain, coordinates, and endpoint convention}
+
+The version-1 domain is
+\begin{equation}
+\Omega=[0,L_x)\times[0,L_y),
+\qquad L_x=L_y=2\pi.
+\end{equation}
+The spatial grids are
+\begin{align}
+x_i&=i\Delta x, & \Delta x&=L_x/N_x, & i&=0,\ldots,N_x-1,\\
+y_j&=j\Delta y, & \Delta y&=L_y/N_y, & j&=0,\ldots,N_y-1.
+\end{align}
+The right endpoints $L_x$ and $L_y$ are not duplicated because they represent the same periodic points as zero. Saved times are an explicit array
+\begin{equation}
+t_n,\qquad n=0,\ldots,N_t-1,
+\end{equation}
+and need not be reconstructed from a presumed constant save interval.
+
+\subsection{Fields and signs}
+
+The physical meanings frozen in Module~1 are
+\begin{align}
+\vect B_\perp&=\nabla\psi\times\widehat{\vect z}
+=(\psi_y,-\psi_x),\\
+\vect v_\perp&=\widehat{\vect z}\times\nabla U
+=(-U_y,U_x),\\
+J&=-\Lap\psi,\\
+\omega&=+\Lap U.
+\label{eq:field_semantics}
+\end{align}
+The evolution equations are
+\begin{align}
+\pd_t\psi+[U,\psi]&=\eta\Lap\psi,\\
+\pd_t\omega+[U,\omega]&=[J,\psi]+\nu\Lap\omega,
+\end{align}
+with bracket
+\begin{equation}
+[f,g]=f_xg_y-f_yg_x.
+\end{equation}
+
+The canonical stored field names are case sensitive:
+\begin{equation}
+\code{psi},\qquad \code{U},\qquad \code{J},\qquad \code{omega}.
+\end{equation}
+Aliases such as \code{u}, \code{phi}, \code{current}, or \code{w} are not accepted at the canonical boundary unless an adapter maps them and records the mapping.
+
+\subsection{Primary, prognostic, reconstructed, and derived}
+
+The labels ``primary'' and ``derived'' depend on purpose.
+\begin{itemize}
+  \item The Module~2 time integrator advances $\psi$ and $\omega$.
+  \item It reconstructs $U$ from $\Lap U=\omega$ with zero spatial mean.
+  \item It derives $J=-\Lap\psi$.
+  \item The Module~4 and Module~5 neural networks use $(\psi,U)$ as primary targets and derive $(J,\omega)$ from spatial derivatives of their predictions.
+\end{itemize}
+All four reference fields are stored because they support round-trip verification, derivative-sensitive scoring, and auditing. Metadata must still record the dependency identities in Equation~\eqref{eq:field_semantics}; four stored arrays are not four independent physical degrees of freedom.
+
+\subsection{Gauge conditions and means}
+
+The stream function has an arbitrary spatial constant because only its derivatives enter velocity. The frozen gauge is
+\begin{equation}
+\average{U}(t)=\frac{1}{L_xL_y}\int_\Omega U\,\mathrm dA=0
+\quad\text{for every saved time.}
+\end{equation}
+The spatial mean of $\psi$ is recorded and must remain consistent within a case. Validators check the numerical means rather than trusting a metadata declaration.
+
+\subsection{Physical nondimensionalization}
+
+All version-1 case values are dimensionless under \code{dimensionless\_v1}. The metadata nevertheless stores the normalization name and reference scales. A value of unity is still a scale choice; omitting it makes a later dimensional reconstruction impossible to audit.
+
+\begin{warningbox}[
+\,: stored truth versus learning values]
+The canonical fields are stored in the physical nondimensional variables above. They are not mean-centered, standardized, logarithmically transformed, clipped, or cast to single precision for neural training. Those operations belong to a derived learning view.
+\end{warningbox}
+
+\section{Identity and dataset hierarchy}
+\label{sec:identity}
+
+\subsection{Case, realization, snapshot, point, and example}
+
+\begin{definitionbox}
+A \textbf{physical case} is an initial-value problem with fixed equations, domain, boundary conditions, initial-condition formula, parameters, and intended time horizon. A \textbf{numerical realization} is one discretized solution of that physical case with a specified solver, grid, time step, precision, and source revision.
+\end{definitionbox}
+
+One physical case can have several realizations: coarse and fine grids, Python and MATLAB implementations, or repeated verification runs. A snapshot is one full spatial state at $t_n$. A grid point is one pair $(x_i,y_j)$. A supervised example is a selected input-target pair constructed from one array element.
+
+\subsection{Why two identifiers are required}
+
+The contract uses:
+\begin{itemize}
+  \item \code{physical\_case\_id}: invariant across scientifically equivalent numerical realizations; and
+  \item \code{case\_id}: unique to one canonical numerical realization.
+\end{itemize}
+
+The physical identifier is derived from canonical physics-defining metadata: equations version, conventions version, domain, boundary conditions, initial-condition name and version, parameter vector, and intended output horizon. The realization identifier additionally includes discretization, integrator, precision, implementation identity, and source/config fingerprints.
+
+\begin{warningbox}[
+\,: duplicate-realization leakage]
+Splitting by \code{case\_id} alone can place a $128^2$ realization in training and a $256^2$ realization of the same physical case in test. That is not an unseen-parameter test. All realizations sharing a \code{physical\_case\_id} must be assigned to the same partition.
+\end{warningbox}
+
+\subsection{Opaque identifiers and readable metadata}
+
+Identifiers should be stable and opaque, for example
+\begin{equation}
+\code{syn-p-8f3a10c64e9b},
+\qquad
+\code{syn-r-54b3027976ad}.
+\end{equation}
+Floating-point parameters do not belong only in a filename. Strings such as \code{eta0.001} can be formatted inconsistently, rounded, or confused with a different unit system. Human-readable parameters remain explicit datasets or manifest fields; the identifier provides stable identity.
+
+\subsection{Release hierarchy}
+
+The logical hierarchy is
+\begin{equation}
+\text{campaign}\supset\text{dataset release}\supset
+\text{physical cases}\supset\text{realizations}\supset
+\text{snapshots}\supset\text{grid points}.
+\end{equation}
+A campaign records the parameter-study intent. A dataset release freezes a particular accepted set, split manifest, and schema versions. New accepted cases require a new release even if old files remain byte-identical.
+
+\section{Canonical HDF5 case schema}
+\label{sec:hdf5}
+
+\subsection{Why HDF5 is selected}
+
+HDF5 provides named multidimensional datasets, groups, attributes, typed numeric storage, chunking, and lossless compression. Its data model is suitable for self-describing scientific arrays and is supported by Python and MATLAB \cite{HDFPreservation}. The format does not supply scientific meaning automatically; this module supplies the naming and semantic rules.
+
+\subsection{Schema identity}
+
+Every canonical case has root attributes
+\begin{align}
+\code{schema\_name}&=\code{pinn\_m3dc1.case},\\
+\code{schema\_version}&=\code{1.0.0},\\
+\code{source\_kind}&=\code{synthetic\_reduced\_mhd},\\
+\code{axis\_order}&=\code{t,x,y}.
+\end{align}
+The schema name answers ``which contract?'' and the version answers ``which revision?'' A generic attribute such as \code{version=1} is insufficient because solver, equations, schema, and dataset releases evolve independently.
+
+\subsection{Required hierarchy}
+
+\begin{verbatim}
+/
+  coordinates/
+    x                         float64 [Nx]
+    y                         float64 [Ny]
+    t                         float64 [Nt]
+  fields/
+    psi                       float64 [Nt, Nx, Ny]
+    U                         float64 [Nt, Nx, Ny]
+    J                         float64 [Nt, Nx, Ny]
+    omega                     float64 [Nt, Nx, Ny]
+  parameters/
+    eta                       float64 scalar
+    nu                        float64 scalar
+    A0                        float64 scalar
+    psi_eq                    float64 scalar
+  diagnostics/
+    time_series/              float64 [Nt] datasets
+    events/                   event value/index/presence datasets
+  physics/                    versions, IC, BC, gauge, normalization
+  numerics/                   grid, FFT, dealiasing, integrator, precision
+  verification/               acceptance flags, tolerances, report links
+  provenance/                 source, config, platform, dependencies
+\end{verbatim}
+
+The tree is normative at the group and dataset level. Implementations may add names only under a documented extension namespace or in a backward-compatible minor schema revision.
+
+\subsection{Dataset or attribute?}
+
+Use datasets for arrays, values that must be sliced, and values whose exact numeric dtype matters. Use attributes for small descriptive metadata attached to a group or dataset. Required scientific scalars such as $\eta$ and $\nu$ are datasets rather than relying only on attributes, because scalar datasets have unambiguous paths, dtypes, and cross-language read behavior.
+
+Large JSON strings, logs, and full configuration files should not be copied indiscriminately into attributes. Store compact identifiers and checksums inside the case, and preserve the authoritative text artifact beside the dataset release.
+
+\subsection{Coordinates}
+
+The coordinate datasets satisfy:
+\begin{align}
+\operatorname{shape}(x)&=(N_x),\\
+\operatorname{shape}(y)&=(N_y),\\
+\operatorname{shape}(t)&=(N_t),
+\end{align}
+with strictly increasing values. Validators require
+\begin{align}
+x_0&=0,& 0&\le x_i<L_x,\\
+y_0&=0,& 0&\le y_j<L_y,\\
+t_0&=0,& t_{n+1}&>t_n.
+\end{align}
+Uniform spacing is recorded and checked for the version-1 pseudo-spectral source. The explicit arrays remain authoritative even if \code{dx}, \code{dy}, and \code{save\_interval} are also stored.
+
+\subsection{Canonical field axis order}
+
+All scalar fields use the logical order
+\begin{equation}
+q[n,i,j]=q(t_n,x_i,y_j),
+\qquad q\in\{\psi,U,J,\omega\}.
+\label{eq:axis_order}
+\end{equation}
+Thus the stored shape is $[N_t,N_x,N_y]$. The axis names are stored with every field, and a reader validates dimensions against the three coordinate lengths.
+
+\begin{checkpointbox}[
+\,: non-square sentinel]
+Axis parity cannot be verified reliably on a square grid containing symmetric fields. Every reader/writer test must include a non-square, non-symmetric sentinel array such as $q[n,i,j]=10^4n+10^2i+j$. A transpose then produces an unmistakable failure.
+\end{checkpointbox}
+
+\subsection{Memory layout is not logical axis order}
+
+NumPy commonly uses row-major contiguous arrays; MATLAB uses column-major storage. HDF5 defines dataset dimensions independently of either language's in-memory stride order. A language binding may require an explicit permutation or transpose to produce the canonical logical array. The reader contract is Equation~\eqref{eq:axis_order}, not ``whatever shape the library returned.''
+
+\subsection{Field-specific attributes}
+
+Each field records:
+\begin{itemize}
+  \item \code{long\_name};
+  \item \code{axis\_names = [t,x,y]};
+  \item \code{normalization = dimensionless\_v1};
+  \item \code{units = 1} for dimensionless quantities;
+  \item \code{definition\_version};
+  \item \code{role = prognostic}, \code{reconstructed}, or \code{derived}; and
+  \item the formula dependency for $J$ and $\omega$.
+\end{itemize}
+The string \code{units=1} means dimensionless. It does not mean unknown units.
+
+\subsection{Precision, special values, and endianness}
+
+Canonical reference fields, coordinates, parameters, and diagnostics are IEEE 754 binary64 values. All required numeric datasets must be finite. NaN and infinity are rejection conditions, not missing-value markers. Optional absent values use an explicit presence flag and a documented sentinel, never an unexplained NaN.
+
+Writers use a declared standard little-endian float64 file datatype for portability. Readers convert to the native representation while preserving numerical values. Any later float32 learning cache is derived and must quantify its error relative to the float64 parent.
+
+\subsection{Chunking and lossless compression}
+
+Chunk shape affects performance but not scientific meaning. The default field chunk is
+\begin{equation}
+(1,\min(N_x,64),\min(N_y,64)),
+\end{equation}
+which supports snapshot and spatial-block access without loading an entire trajectory. Lossless compression and byte shuffling may be used and must be recorded. A compression setting never changes the logical checksum defined for uncompressed values.
+
+\subsection{Diagnostics and event records}
+
+Time-aligned scalar diagnostics use length $N_t$. Required initial diagnostics are:
+\begin{itemize}
+  \item magnetic energy;
+  \item kinetic energy;
+  \item total energy;
+  \item Ohmic dissipation;
+  \item viscous dissipation;
+  \item maximum absolute current;
+  \item reconnected flux; and
+  \item reconnection rate when defined.
+\end{itemize}
+
+An event record stores at least \code{present}, \code{time}, \code{snapshot\_index}, \code{value}, and \code{definition\_version}. Events include current-sheet onset, first current peak, first reconnection-rate peak, topology merger, and confirmation of a post-peak interval. Interpolated event times must say which interpolation method was used.
+
+\section{Parameters, physics metadata, and normalization}
+\label{sec:parameters}
+
+\subsection{Case parameters}
+
+The version-1 parameter vector is
+\begin{equation}
+\vect\mu=(\eta,\nu,A_0).
+\end{equation}
+The equilibrium amplitude $\Psi_{\rm eq}$ is stored even when fixed at unity because it enters the initial-condition definition. Derived dimensionless groups may be stored for convenience,
+\begin{equation}
+S=1/\eta,
+\qquad
+\operatorname{Re}=1/\nu,
+\qquad
+\operatorname{Pm}=\nu/\eta,
+\end{equation}
+but the primitive parameter datasets remain authoritative.
+
+\subsection{Physics metadata}
+
+The \dataset{physics} group records:
+\begin{itemize}
+  \item equations name and version;
+  \item sign-convention version;
+  \item dimensionality and coordinate system;
+  \item domain periods and boundary conditions;
+  \item guide-field assumption;
+  \item density and incompressibility assumptions;
+  \item initial-condition name, formula version, and parameters;
+  \item gauge and mean policies;
+  \item physical-normalization name and reference scales; and
+  \item the declared relationship of stored primary and derived fields.
+\end{itemize}
+
+\subsection{Two normalization layers}
+
+Let $q_{\rm dim}$ be a dimensional physical variable and $q_0$ a physical reference scale. Physical nondimensionalization gives
+\begin{equation}
+q=\frac{q_{\rm dim}}{q_0}.
+\end{equation}
+A later neural standardization may give
+\begin{equation}
+\widetilde q=\frac{q-m_q}{s_q}.
+\label{eq:two_stage_scale}
+\end{equation}
+The first transformation defines the PDE coefficients and physical interpretation. The second improves optimization conditioning. Equation~\eqref{eq:two_stage_scale} must be invertible:
+\begin{equation}
+q=m_q+s_q\widetilde q,
+\qquad
+q_{\rm dim}=q_0(m_q+s_q\widetilde q).
+\end{equation}
+
+\begin{warningbox}
+Calling both operations ``normalization'' without a namespace is dangerous. The contract uses \code{physical\_normalization} for the reduced-MHD scale system and \code{preprocessing} for neural transforms.
+\end{warningbox}
+
+\subsection{Reference scales}
+
+The physical-normalization record contains the declared length, magnetic-field, density, velocity, time, flux, stream-function, current, and vorticity scales. If a synthetic study chooses numerical scale values of one, the symbolic definitions and dimensional units are still recorded. This preserves the chain needed for later comparison with dimensional exports.
+
+\section{Numerical metadata and verification evidence}
+\label{sec:numerics}
+
+\subsection{Numerical realization metadata}
+
+The \dataset{numerics} group records:
+\begin{itemize}
+  \item spatial method and version;
+  \item $N_x,N_y,\Delta x,\Delta y$;
+  \item Fourier wave-number ordering and transform normalization;
+  \item dealiasing rule;
+  \item state variables actually advanced;
+  \item Poisson zero-mode policy;
+  \item time integrator and version;
+  \item nominal and actual time-step policy;
+  \item requested output times and actual saved times;
+  \item floating-point precision; and
+  \item restart or continuation ancestry.
+\end{itemize}
+
+The coordinate arrays and field arrays are authoritative values. Duplicated scalars such as $N_x$ exist to make validation and search convenient; they must agree with array shapes.
+
+\subsection{Acceptance record}
+
+The \dataset{verification} group stores one machine-readable flag per required test, the tolerance, measured value, pass/fail result, and test-definition version. A single \code{accepted=true} flag is not sufficient by itself. The aggregate status is recomputed from required component flags.
+
+\subsection{Convergence references}
+
+A production case can refer to a convergence campaign rather than embedding all refinement arrays. The case records the convergence-report identifier, dataset release, compared resolutions, observed differences, and the criterion that selected this realization. The referenced report is content-addressed and retained with the project artifacts.
+
+\subsection{Rejected and quarantined data}
+
+The allowed lifecycle states are:
+\begin{equation}
+\code{incomplete},\quad
+\code{candidate},\quad
+\code{accepted},\quad
+\code{rejected},\quad
+\code{quarantined}.
+\end{equation}
+Only \code{accepted} can enter a release. \code{rejected} means a known criterion failed. \code{quarantined} means integrity or semantic compatibility is uncertain. State changes are recorded in provenance rather than erasing history.
+
+\section{Provenance, integrity, and reproducibility}
+\label{sec:provenance}
+
+\subsection{What provenance must answer}
+
+For each realization, another researcher should be able to answer:
+\begin{enumerate}[label=\arabic*.]
+  \item Which configuration initiated the run?
+  \item Which source revision and implementation produced it?
+  \item Which dependency and platform versions were used?
+  \item Which random inputs or perturbations were present?
+  \item Which verification results accepted it?
+  \item Has the file changed since the release was frozen?
+  \item Is this file a restart, migration, conversion, or derived product?
+\end{enumerate}
+
+\subsection{Required provenance fields}
+
+Store the UTC creation time, producer language, producer package version, source revision, dirty-worktree flag, configuration path and SHA-256 digest, command or entry-point identity, dependency lock digest when available, operating system, architecture, and parent artifact identifiers.
+
+Do not store secrets, access tokens, full environment dumps, or private absolute paths. Reproducibility metadata must be useful without leaking credentials or unrelated user information.
+
+\subsection{Configuration preservation}
+
+The exact canonical run configuration is retained as a release artifact. The case stores its digest and the subset of values required for self-description. A default applied silently by code is still an input and must appear in the resolved configuration.
+
+\subsection{Checksums without self-reference}
+
+The dataset manifest stores a SHA-256 checksum of every closed HDF5 file. The checksum is external because a file cannot contain a checksum of its own final bytes without a self-reference problem. The case may also store logical payload digests computed over a declared canonical sequence of dataset paths, dtypes, shapes, and uncompressed values.
+
+JSON manifests use a deterministic canonical serialization before hashing. A canonical JSON representation makes equivalent metadata produce the same byte sequence; RFC~8785 defines one such scheme \cite{JCS}.
+
+\subsection{Atomic publication}
+
+Cases are written under a temporary name, closed, reopened, schema-validated, physics-validated, and checksummed before atomic publication. The release manifest is written only after every referenced file exists and passes validation. An interrupted writer must not leave a partial file with an accepted production name.
+
+\begin{resultbox}
+Reproducibility requires both semantic identity and byte integrity. A matching checksum proves that bytes have not changed; it does not prove that the field sign, axis order, or split design is scientifically correct. Schema and physics validators provide that second layer.
+\end{resultbox}
+
+\section{Dataset release manifest}
+\label{sec:manifest}
+
+\subsection{Why a second file is required}
+
+A case file describes one realization. A dataset manifest describes relationships across cases: membership, order, split assignment, intended task, checksums, duplicate groups, preprocessing, and release history. These facts cannot be represented reliably by inspecting filenames.
+
+The version-1 manifest is UTF-8 JSON conforming to RFC~8259 \cite{RFC8259}. JSON is selected because both Python and MATLAB can read it without depending on a language-specific object format. Numeric field arrays remain in HDF5; JSON is not used for bulk arrays.
+
+\subsection{Manifest identity}
+
+The top-level required fields are:
+\begin{itemize}
+  \item \code{schema\_name = pinn\_m3dc1.dataset\_manifest};
+  \item \code{schema\_version = 1.0.0};
+  \item \code{dataset\_id} and \code{release\_version};
+  \item \code{created\_utc};
+  \item \code{case\_schema\_requirement};
+  \item \code{physics\_compatibility};
+  \item ordered \code{cases};
+  \item \code{split\_manifest};
+  \item \code{preprocessing};
+  \item \code{integrity}; and
+  \item \code{provenance}.
+\end{itemize}
+
+\subsection{Case index entries}
+
+Each case entry stores:
+\begin{itemize}
+  \item relative file path;
+  \item file SHA-256 and byte size;
+  \item \code{physical\_case\_id} and \code{case\_id};
+  \item source kind and acceptance status;
+  \item parameter vector;
+  \item coordinate and field shapes;
+  \item schema and conventions versions;
+  \item split and test-regime labels; and
+  \item any duplicate, refinement-family, or parity-family identifier.
+\end{itemize}
+
+Paths are relative to the manifest directory and use forward slashes. Moving a release directory therefore does not invalidate its internal path references.
+
+\subsection{One authoritative split assignment}
+
+The split may be represented as explicit lists of physical-case identifiers or as labels on case entries, but the manifest must have one authoritative form. If both are stored for convenience, validation requires exact agreement.
+
+\subsection{Release immutability}
+
+Once published, a release is immutable. Correcting a case, changing a split, adding a required field, or recomputing preprocessing creates a new release. An older release may be marked superseded, but its files and manifest remain available for reproduction.
+
+This follows the central release principle of semantic versioning: published contents are not silently modified, and compatibility is communicated by major, minor, and patch components \cite{SemVer}. The schema and dataset release have independent versions because a dataset can add cases without changing its case schema.
+
+\section{Whole-case split construction}
+\label{sec:splits}
+
+\subsection{The scientific unit of generalization}
+
+The main surrogate question is whether a model predicts an unseen parameter combination. Therefore the split unit is the physical case, not an array element. Define disjoint sets
+\begin{equation}
+\mathcal P_{\rm tr},\quad
+\mathcal P_{\rm va},\quad
+\mathcal P_{\rm ti},\quad
+\mathcal P_{\rm te},
+\end{equation}
+for training, validation, interpolation test, and extrapolation test physical-case identifiers. They satisfy pairwise disjointness and
+\begin{equation}
+\mathcal P_{\rm all}
+=\mathcal P_{\rm tr}\cup\mathcal P_{\rm va}
+\cup\mathcal P_{\rm ti}\cup\mathcal P_{\rm te}.
+\end{equation}
+
+All realizations, snapshots, and grid points sharing one physical-case identifier remain in the same partition.
+
+\subsection{Roles of the partitions}
+
+\begin{longtable}{p{0.19\textwidth}p{0.34\textwidth}p{0.37\textwidth}}
+\toprule
+Partition & Permitted use & Forbidden use \\
+\midrule
+\endfirsthead
+\toprule
+Partition & Permitted use & Forbidden use \\
+\midrule
+\endhead
+Training & Update model weights; fit preprocessing; design training samplers & Final unbiased scoring \\
+Validation & Select architecture, loss weights, schedules, stopping, and checkpoints & Updating ordinary model weights as labeled training data \\
+Interpolation test & Final scoring on unseen parameter combinations supported by the training parameter region & Any design, scaling, or stopping decision \\
+Extrapolation test & Final scoring outside the declared training support & Any design, scaling, or stopping decision \\
+\bottomrule
+\end{longtable}
+
+\subsection{Interpolation in several parameters}
+
+For training parameter vectors $\{\vect\mu_c:c\in\mathcal P_{\rm tr}\}$, a held-out vector inside their convex hull is classified as parameter interpolation for the primary geometric rule. A vector outside that hull is extrapolation. Axis-aligned range labels are also stored because they are easy to interpret:
+\begin{equation}
+\eta_{\min}^{\rm tr}\le\eta\le\eta_{\max}^{\rm tr},
+\quad
+\nu_{\min}^{\rm tr}\le\nu\le\nu_{\max}^{\rm tr},
+\quad
+A_{0,\min}^{\rm tr}\le A_0\le A_{0,\max}^{\rm tr}.
+\end{equation}
+A point can satisfy all three coordinate ranges yet lie outside the convex hull. Both labels are useful and neither should be hidden inside a single combined test score.
+
+\subsection{Designed split before random split}
+
+When the parameter sweep is a structured grid, deliberately reserve interior combinations for interpolation and edge or outside-range combinations for extrapolation. Random splitting may accidentally create an easy or scientifically uninformative test set. Randomness is permitted only within a predeclared stratification rule and with a saved seed and algorithm version.
+
+\subsection{Duplicate and near-duplicate grouping}
+
+Before splitting, group cases that share:
+\begin{itemize}
+  \item the same physics-defining parameters;
+  \item the same initial condition under a different numerical resolution;
+  \item Python and MATLAB parity realizations;
+  \item restart-derived duplicates;
+  \item migrated copies of an older schema; or
+  \item numerically equivalent parameters within the declared canonicalization tolerance.
+\end{itemize}
+The group, not the file, is assigned to a partition.
+
+\subsection{No test information in preprocessing}
+
+After the split is frozen, every fitted statistic has the form
+\begin{equation}
+\widehat{\vect\alpha}
+=\operatorname{FitTransform}(\mathcal D_{\rm tr}),
+\end{equation}
+where $\vect\alpha$ contains means, scales, ranges, logarithmic-transform choices, clipping policies, or sampling weights. Validation and test cases are transformed using $\widehat{\vect\alpha}$ without refitting.
+
+\begin{warningbox}[
+\,: leakage through convenience]
+Computing a separate output mean or scale for each test trajectory reveals information about that trajectory. Even though no target value is placed directly into a training batch, the preprocessing has used the complete held-out field.
+\end{warningbox}
+
+\subsection{Split freezing and test access}
+
+The split manifest is written before model development. Test case identifiers can be visible for bookkeeping, but test values and metrics must not guide architecture, loss weights, sampling, training duration, or checkpoint selection. If repeated test inspection occurs, the set has become a validation set and a new untouched test release is required.
+
+\section{Learning-ready views and preprocessing}
+\label{sec:preprocessing}
+
+\subsection{A view, not a replacement}
+
+A learning-ready view selects points and applies transforms to a canonical release. It records:
+\begin{equation}
+\text{view}=(\text{parent release},\text{split},\text{selection},
+\text{transforms},\text{output layout}).
+\end{equation}
+The canonical HDF5 cases remain unchanged. Views can be regenerated and compared because their instructions and random seeds are explicit.
+
+\subsection{Raw neural map}
+
+The physical input and primary target are
+\begin{align}
+\vect s&=(x,y,t,\eta,\nu,A_0),\\
+\vect q&=(\psi,U).
+\end{align}
+The learned map is
+\begin{equation}
+(x,y,t,\eta,\nu,A_0)
+\longmapsto(\widehat\psi,\widehat U).
+\end{equation}
+$J$ and $\omega$ remain evaluation fields and derivative-consistency references; they are not primary target channels in the frozen Module~4/5 comparison.
+
+\subsection{Periodic coordinate representation}
+
+Define
+\begin{equation}
+\phi_x=\frac{2\pi x}{L_x},
+\qquad
+\phi_y=\frac{2\pi y}{L_y}.
+\end{equation}
+The primary spatial encoding is
+\begin{equation}
+\vect e_{\rm per}
+=\left(\sin\phi_x,\cos\phi_x,
+\sin\phi_y,\cos\phi_y\right).
+\end{equation}
+The encoding is a model input transform, not a change to the stored coordinates. Raw $(x,y)$ remain available for quadrature, plotting, residual interpretation, and inverse audit.
+
+\subsection{Time and amplitude scaling}
+
+For a declared training time interval,
+\begin{equation}
+\widetilde t
+=2\frac{t-t_{\min}^{\rm tr}}
+{t_{\max}^{\rm tr}-t_{\min}^{\rm tr}}-1.
+\end{equation}
+$A_0$ may use the same affine map based on training-case bounds or training statistics. Values outside $[-1,1]$ are permitted at extrapolation time and must not be silently clipped.
+
+\subsection{Transport-coefficient transforms}
+
+If positive $\eta$ and $\nu$ span several orders of magnitude, the declared transform may begin with
+\begin{equation}
+r_\eta=\log_{10}\eta,
+\qquad
+r_\nu=\log_{10}\nu,
+\end{equation}
+followed by training-only affine scaling. If the design is narrow and linear, raw coefficients may be scaled instead. The selected transform is part of the view version. An ideal case with zero coefficient cannot pass through a logarithm and requires an explicit separate policy.
+
+\subsection{Output standardization}
+
+The primary neural view stores
+\begin{equation}
+\widetilde\psi=\frac{\psi-m_\psi}{s_\psi},
+\qquad
+\widetilde U=\frac{U-m_U}{s_U},
+\end{equation}
+with $m_\psi,s_\psi,m_U,s_U$ fitted from the declared training observations only. Required conditions are
+\begin{equation}
+s_\psi>0,
+\qquad
+s_U>0.
+\end{equation}
+The scientific prediction is recovered before evaluation:
+\begin{equation}
+\widehat\psi=m_\psi+s_\psi\widehat{\widetilde\psi},
+\qquad
+\widehat U=m_U+s_U\widehat{\widetilde U}.
+\end{equation}
+
+\subsection{Statistic weighting policy}
+
+A global pointwise mean weights cases in proportion to their number of stored points. If all accepted cases share the same grid and output count, this is equivalent to equal case weighting. If they differ, the contract must choose explicitly between:
+\begin{align}
+m_q^{\rm point}
+&=\frac{\sum_c\sum_{n,i,j}q^{(c)}_{n i j}}
+{\sum_c N_t^{(c)}N_x^{(c)}N_y^{(c)}},\\
+m_q^{\rm case}
+&=\frac{1}{N_{\rm case}}
+\sum_c\left[
+\frac{1}{N_t^{(c)}N_x^{(c)}N_y^{(c)}}
+\sum_{n,i,j}q^{(c)}_{n i j}\right].
+\end{align}
+The primary version-1 view uses case-balanced statistics so that a higher-resolution realization does not dominate merely by containing more entries.
+
+\subsection{Chain-rule metadata for the PINN}
+
+Module~5 differentiates inverse-transformed fields with respect to raw physical coordinates. Therefore the preprocessing record must expose analytic Jacobian factors. For example, if
+\begin{equation}
+\widetilde x=(x-m_x)/s_x,
+\qquad
+\psi=m_\psi+s_\psi\widetilde\psi,
+\end{equation}
+then
+\begin{align}
+\pd_x\psi&=\frac{s_\psi}{s_x}\pd_{\widetilde x}\widetilde\psi,\\
+\pd_x^2\psi&=\frac{s_\psi}{s_x^2}\pd_{\widetilde x}^2\widetilde\psi.
+\end{align}
+With sine-cosine encoding, automatic differentiation must traverse the phase map $2\pi x/L_x$. A black-box transform that cannot report these derivatives is not acceptable for the strong-form PINN.
+
+\subsection{Clipping and imputation}
+
+The reference fields contain no missing required values. The primary view performs no output clipping and no imputation. Clipping a test input to the training range changes extrapolation into a boundary prediction and must not occur silently. Any robustness experiment that adds noise, masks values, or clips outliers is a separately versioned view.
+
+\section{Flattening, sampling, and reconstruction}
+\label{sec:flattening}
+
+\subsection{From arrays to supervised rows}
+
+For case $c$, the canonical array element gives
+\begin{align}
+\vect s^{(c,n,i,j)}
+&=(x_i,y_j,t_n,\eta_c,\nu_c,A_{0,c}),\\
+\vect q^{(c,n,i,j)}
+&=(\psi^{(c)}_{n i j},U^{(c)}_{n i j}).
+\end{align}
+A flattened table is permitted as a cache, but every row retains:
+\begin{equation}
+(\code{case\_id},n,i,j,\code{split},\code{selection\_id}).
+\end{equation}
+Those indices make the operation reversible.
+
+\subsection{Canonical linear index}
+
+For zero-based indices and axis order $[t,x,y]$, define
+\begin{equation}
+\ell=(nN_x+i)N_y+j.
+\label{eq:linear_index}
+\end{equation}
+Then
+\begin{align}
+j&=\ell\bmod N_y,\\
+i&=\left\lfloor\frac{\ell}{N_y}\right\rfloor\bmod N_x,\\
+n&=\left\lfloor\frac{\ell}{N_xN_y}\right\rfloor.
+\end{align}
+This is a logical enumeration for interchange. A language may use a different native linear-memory order internally, but serialized observation indices use Equation~\eqref{eq:linear_index}.
+
+\subsection{Observation sets}
+
+An observation set is a deterministic selection of rows for one data budget. It stores:
+\begin{itemize}
+  \item parent dataset and split manifest digests;
+  \item per-case selected $(n,i,j)$ indices;
+  \item selection algorithm and version;
+  \item random seed;
+  \item desired and realized counts;
+  \item replacement policy;
+  \item stratification by time or structure; and
+  \item its own checksum.
+\end{itemize}
+Module~4 and Module~5 use the same observation-set identifier in a fair comparison.
+
+\subsection{Hierarchical sampling}
+
+The recommended training sampler chooses a case, then a time, then spatial points. This makes it possible to balance cases and prevent dense snapshots from controlling the loss. The exact probabilities are saved. Uniform point sampling over all concatenated arrays is a different distribution and must be labeled as such.
+
+\subsection{Ragged cases}
+
+Cases may eventually have different $N_x,N_y,N_t$ or saved times. The canonical release stores each case independently and does not pad reference fields. A learning view may concatenate rows because coordinate networks accept variable grids. Any padded tensor representation must store masks and may not treat padding as a physical zero.
+
+\subsection{Full-grid evaluation remains authoritative}
+
+Training observations are a subset. Validation and test scoring reconstruct full declared evaluation grids and compare all four fields and diagnostics. A good error on the sampled training rows is not evidence of correct topology, derivative fields, or current-sheet structure.
+
+\section{Schema and physics validation}
+\label{sec:validation}
+
+\subsection{Validation layers}
+
+\begin{longtable}{p{0.20\textwidth}p{0.34\textwidth}p{0.36\textwidth}}
+\toprule
+Layer & Examples & Failure meaning \\
+\midrule
+\endfirsthead
+\toprule
+Layer & Examples & Failure meaning \\
+\midrule
+\endhead
+Structural & Required paths, dtypes, ranks, shapes, strings & File does not implement the schema \\
+Relational & Field dimensions match coordinates; indices are valid & Internally inconsistent serialization \\
+Numerical & Finite values, monotone coordinates, gauge tolerance & Invalid numerical contents \\
+Physical & $J=-\Lap\psi$, $\omega=\Lap U$, periodicity, diagnostics & Stored meanings or computations disagree \\
+Provenance & Required versions, config digest, parent links & Reproduction chain is incomplete \\
+Release & Checksums, membership, disjoint splits, no duplicates & Dataset assembly is corrupted or leaky \\
+\bottomrule
+\end{longtable}
+
+\subsection{Shape and coordinate checks}
+
+For every field $q$,
+\begin{equation}
+\operatorname{shape}(q)
+=(\operatorname{len}(t),\operatorname{len}(x),\operatorname{len}(y)).
+\end{equation}
+The validator checks endpoint exclusion, periodic grid spacing, time monotonicity, declared domain lengths, and agreement between redundant metadata and authoritative arrays.
+
+\subsection{Derived-field consistency}
+
+On the periodic grid, recompute
+\begin{equation}
+J_{\rm check}=-\Laph\psi,
+\qquad
+\omega_{\rm check}=\Laph U
+\end{equation}
+with the declared discrete spectral operator. Report both absolute and normalized errors, for example
+\begin{equation}
+\epsilon_J
+=\frac{\norm{J-J_{\rm check}}_2}
+{\max(\norm{J}_2,\epsilon_{\rm floor})}.
+\end{equation}
+The tolerance is versioned and must reflect roundoff, output precision, and whether stored fields were computed before or after any spectral projection.
+
+\subsection{Gauge and mean checks}
+
+For every snapshot,
+\begin{equation}
+|\average U_h|\le\tau_U.
+\end{equation}
+The mean of $\psi$ is compared with its recorded initial value. A case-dependent constant offset cannot be repaired silently during ingestion; repair would create a migrated realization with explicit ancestry.
+
+\subsection{Diagnostic recomputation}
+
+Recompute energies, maximum current, and selected topology diagnostics from stored fields. Stored histories must agree within declared tolerances. This detects stale diagnostics written from an earlier in-memory state or an inconsistent axis permutation.
+
+\subsection{Manifest checks}
+
+The release validator requires:
+\begin{itemize}
+  \item every indexed file exists and matches its checksum;
+  \item every case is accepted and schema-compatible;
+  \item no unindexed file is treated as release data;
+  \item physical-case groups are split exactly once;
+  \item train, validation, and test groups are disjoint;
+  \item preprocessing depends only on training identifiers;
+  \item observation indices lie inside their parent arrays; and
+  \item all parent digests and version constraints resolve.
+\end{itemize}
+
+\begin{checkpointbox}[
+\,: fail before concatenation]
+Compatibility is checked case by case before any arrays are concatenated. Once incompatible arrays have been flattened together, their original meanings can be difficult or impossible to recover.
+\end{checkpointbox}
+
+\section{Python--MATLAB interoperability}
+\label{sec:interop}
+
+\subsection{Scientific parity, not identical internal code}
+
+Python and MATLAB readers and writers may use different APIs and internal layouts. They must nevertheless agree on the logical HDF5 paths, axis names, numeric values, string encoding, identifiers, checksums, and validation outcomes.
+
+\subsection{Mandatory round-trip matrix}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Writer & Reader & Required result \\
+\midrule
+Python & Python & Exact schema and value round trip \\
+Python & MATLAB & Canonical logical arrays after explicit mapping \\
+MATLAB & MATLAB & Exact schema and value round trip \\
+MATLAB & Python & Canonical logical arrays after explicit mapping \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Every direction uses a small non-square sentinel case and at least one production-like case.
+
+\subsection{Strings, booleans, and scalars}
+
+Cross-language failures often arise from metadata rather than fields. The contract therefore specifies UTF-8 strings, scalar numeric datasets with rank zero, and acceptance flags stored as unsigned 8-bit integers with allowed values $0$ and $1$. Readers convert these representations to native strings and logical values only after schema validation.
+
+Fixed versus variable-length strings must be tested by both readers. Trailing NUL bytes or padded spaces are not part of an identifier. The canonical comparison uses decoded Unicode text.
+
+\subsection{Index bases}
+
+Serialized snapshot and grid indices are zero based. MATLAB converts to one-based subscripts at its internal boundary:
+\begin{equation}
+n_{\rm MATLAB}=n_{\rm stored}+1,
+\end{equation}
+and similarly for $i$ and $j$. Writing a MATLAB index without subtracting one creates a valid-looking but shifted observation set.
+
+\subsection{Numeric comparison}
+
+Values written and read without arithmetic should agree bitwise after dtype conversion. Independently generated solver results are compared with declared physical tolerances, not required to be bitwise identical. The report must distinguish an I/O round-trip test from a solver-parity test.
+
+\section{Meaning of M3D-C1-shaped I/O}
+\label{sec:m3dc1}
+
+\subsection{The similarity being claimed}
+
+The synthetic workflow and a future M3D-C1 workflow can share an abstract record:
+\begin{equation}
+\text{source metadata}
++\text{coordinates/mesh}
++\text{parameters}
++\text{time-dependent fields}
++\text{diagnostics}
++\text{splits}.
+\end{equation}
+This is the sense in which the I/O is M3D-C1-shaped. It demonstrates a disciplined route by which high-fidelity exports could become learning data.
+
+\subsection{What cannot be identified by name alone}
+
+\begin{longtable}{p{0.25\textwidth}p{0.29\textwidth}p{0.36\textwidth}}
+\toprule
+Synthetic version 1 & Possible M3D-C1 export concept & Required adapter question \\
+\midrule
+\endfirsthead
+\toprule
+Synthetic version 1 & Possible M3D-C1 export concept & Required adapter question \\
+\midrule
+\endhead
+Cartesian $(x,y)$ periodic grid & Finite-element mesh in toroidal geometry & Which coordinates, elements, basis functions, periodic identifications, and quadrature define the field? \\
+$\psi$ Cartesian flux function & Flux-like exported potential & Are sign, gauge, dimensional scale, geometric factors, and physical definition equivalent? \\
+$U$ Cartesian stream function & Flow-like reduced potential & Which velocity components and metric factors does it generate? \\
+$J=-\Lap\psi$ & Current component or current density & Which component, operator, units, sign, and basis are used? \\
+$\omega=\Lap U$ & Vorticity-like variable & Is it exported, reconstructible, and defined by the same operator? \\
+$\eta,\nu,A_0$ & Transport, equilibrium, and perturbation inputs & Are coefficients scalar, spatially varying, tensorial, dimensional, or closure-dependent? \\
+Two-field incompressible model & Selected extended/reduced MHD option & Which evolved fields, closures, sources, and equations were active? \\
+\bottomrule
+\end{longtable}
+
+\begin{adapterbox}
+Matching symbols do not establish matching variables. The adapter must derive or document the map from exported quantities to canonical learning variables, including geometry, units, normalization, sign, gauge, interpolation, and information loss.
+\end{adapterbox}
+
+\subsection{Source-native and canonical layers}
+
+Genuine exports first enter an immutable \textbf{source-native} layer that preserves the original mesh, field names, units, and metadata. An adapter produces a separate canonical layer. It never overwrites the source. The canonical artifact records:
+\begin{itemize}
+  \item source file checksums and export-tool version;
+  \item selected M3D-C1 model option and equations;
+  \item field-by-field mapping formulas;
+  \item coordinate and mesh transformation;
+  \item interpolation or projection operator;
+  \item unit and normalization conversion;
+  \item sign and gauge corrections;
+  \item fields dropped, approximated, or synthesized;
+  \item conservation and reconstruction errors; and
+  \item adapter validation results.
+\end{itemize}
+
+\subsection{Structured grid is not a universal canonical target}
+
+Forcing finite-element data immediately onto the synthetic $[t,x,y]$ grid may erase mesh geometry, basis order, curved elements, and metric information. The future schema therefore uses a source-family discriminator. \code{synthetic\_reduced\_mhd} requires the structured-grid groups defined in Section~\ref{sec:hdf5}; \code{m3dc1\_native} will require a separate major source schema with mesh topology and field association. A later learning view may project both onto a common representation only after projection error is measured.
+
+\subsection{Conditions for an M3D-C1 surrogate claim}
+
+The project may use the phrase ``validated M3D-C1 surrogate'' only after:
+\begin{enumerate}[label=\arabic*.]
+  \item genuine exports are available across a declared M3D-C1 configuration domain;
+  \item active equations, closures, geometry, boundary conditions, mesh, and units are known;
+  \item the adapter passes field and diagnostic reconstruction tests;
+  \item train/validation/test splits contain independent M3D-C1 cases;
+  \item accuracy is evaluated against untouched genuine outputs; and
+  \item discrepancies between the synthetic reduced model and M3D-C1 are reported rather than hidden.
+\end{enumerate}
+
+\section{Versioning, compatibility, and migration}
+\label{sec:versioning}
+
+\subsection{Independent version namespaces}
+
+The following versions are stored separately:
+\begin{itemize}
+  \item case schema;
+  \item dataset-manifest schema;
+  \item equations and sign conventions;
+  \item physical normalization;
+  \item initial-condition formula;
+  \item diagnostic definitions;
+  \item solver implementation;
+  \item preprocessing view;
+  \item split manifest; and
+  \item dataset release.
+\end{itemize}
+Changing one does not imply that all others changed.
+
+\subsection{Semantic version policy}
+
+For a public schema $X.Y.Z$:
+\begin{itemize}
+  \item increment $Z$ for a correction that does not change valid instance interpretation;
+  \item increment $Y$ for backward-compatible optional additions; and
+  \item increment $X$ for incompatible names, required fields, shapes, dtypes, axes, signs, units, or meanings.
+\end{itemize}
+
+A change from $[t,x,y]$ to $[t,y,x]$, from $J=-\Lap\psi$ to $J=+\Lap\psi$, or from dimensionless to dimensional values is a major change even if a converter is easy to write.
+
+\subsection{Reader behavior}
+
+A reader declares a version range it supports. It rejects an unknown major version. It may accept a newer minor version only if required names retain their meanings and unknown optional extensions can be ignored safely. It never guesses a missing version from a filename or date.
+
+\subsection{Migration rules}
+
+A migration is a deterministic, versioned transformation
+\begin{equation}
+\mathcal M_{a\rightarrow b}:D_a\longrightarrow D_b.
+\end{equation}
+It produces a new file with a new \code{case\_id}, preserves the old file, records parent checksums, writes the migration tool revision, and validates both generic structure and known scientific invariants.
+
+Lossless renaming differs from scientific conversion. If a migration changes precision, interpolates a grid, changes a gauge, or reconstructs a field, the numerical error and information loss are reported.
+
+\subsection{Deprecation}
+
+Deprecated optional names may be read for a stated transition period but are never written by the newest writer. Required names cannot simply disappear in a minor revision. The migration guide lists replacement paths and any change in meaning.
+
+\section{Common failure modes}
+\label{sec:failures}
+
+\subsection{A transposed field that still looks plausible}
+
+On a square symmetric benchmark, exchanging $x$ and $y$ can preserve the shape and produce visually reasonable contours. Non-square sentinels, asymmetric analytic values, and coordinate-aware diagnostics are necessary.
+
+\subsection{Endpoint duplication}
+
+Storing both $x=0$ and $x=L_x$ duplicates a periodic point. It changes quadrature weights, creates repeated training rows, and may produce an apparent seam if the values differ by roundoff or interpolation.
+
+\subsection{Silent float32 conversion}
+
+Single precision may preserve broad $\psi$ contours while degrading $J$, $\omega$, high-order PINN residuals, and small balance defects. A float32 cache is an evaluated derivative product, not the reference dataset.
+
+\subsection{Stale derived fields}
+
+A writer can update $\psi$ but accidentally store $J$ from an earlier state. Recomputing $J$ and $\omega$ on read detects this.
+
+\subsection{One accepted flag with no evidence}
+
+A Boolean cannot explain which tolerances were applied or which test failed after a definition changed. Store the component results and recompute the aggregate.
+
+\subsection{Random point split}
+
+Neighboring points from the same trajectory appear in both train and test. The resulting score measures interpolation within seen physical cases and overstates parameter generalization.
+
+\subsection{Normalization before splitting}
+
+Global means, standard deviations, parameter ranges, or clipping thresholds incorporate held-out cases. The test distribution has influenced the training pipeline even if its rows never enter a gradient batch.
+
+\subsection{Filename as metadata}
+
+Parsing parameters from filenames loses type, unit, formula version, and canonical precision. Rename operations can silently change apparent meaning. Filenames assist humans; dataset contents and manifests are authoritative.
+
+\subsection{Plots as training data}
+
+Images discard field precision, coordinates, gauge, units, sign, and the relationship among variables. They are visualization artifacts, not canonical targets.
+
+\subsection{Schema-valid but physics-invalid}
+
+A file can have all required paths and still store $J$ with the wrong sign. Structural validation and physical validation are separate mandatory layers.
+
+\subsection{M3D-C1 name matching}
+
+Mapping a field named \code{psi} directly to the synthetic $\psi$ without checking geometry, normalization, gauge, and definition is semantic corruption disguised as convenience.
+
+\section{Module 3 computational contract}
+\label{sec:contract}
+
+\subsection{Inputs}
+
+Module~3 receives:
+\begin{itemize}
+  \item closed Module~2 candidate case files;
+  \item complete verification records;
+  \item resolved run configurations;
+  \item equations, conventions, IC, diagnostic, and normalization versions; and
+  \item a version-controlled dataset-release configuration.
+\end{itemize}
+
+\subsection{Outputs}
+
+It produces:
+\begin{itemize}
+  \item immutable accepted canonical HDF5 cases;
+  \item rejected or quarantined cases outside the accepted index;
+  \item a versioned JSON dataset manifest;
+  \item a whole-physical-case split manifest;
+  \item training-only preprocessing records;
+  \item optional reproducible observation-set manifests;
+  \item integrity checksums; and
+  \item validation and Python--MATLAB round-trip reports.
+\end{itemize}
+
+\subsection{Recommended components}
+
+\begin{longtable}{p{0.25\textwidth}p{0.63\textwidth}}
+\toprule
+Component & Responsibility \\
+\midrule
+\endfirsthead
+\toprule
+Component & Responsibility \\
+\midrule
+\endhead
+Case inspector & Read candidate metadata without accepting it implicitly. \\
+Schema validator & Validate names, versions, dtypes, ranks, shapes, and allowed values. \\
+Physics validator & Recompute identities, gauge, periodicity, and diagnostic checks. \\
+Identity builder & Construct physical-case and realization identifiers from canonical metadata. \\
+Canonical writer & Publish atomic HDF5 cases in schema version 1.0.0. \\
+Manifest builder & Index membership, hashes, parameters, schemas, and ancestry. \\
+Duplicate grouper & Keep equivalent physical cases and realizations in one split group. \\
+Split builder & Create designed whole-case partitions and freeze their digest. \\
+Preprocessor fitter & Fit invertible transforms on training observations only. \\
+Observation builder & Store deterministic per-case indices for controlled data budgets. \\
+Round-trip suite & Test Python/MATLAB readers and writers with sentinel and production cases. \\
+Migration tool & Convert an explicit old schema to a new one without overwriting parents. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Required test families}
+
+\begin{itemize}
+  \item missing path, wrong dtype, wrong rank, and wrong-axis negative tests;
+  \item non-square sentinel round trips in all language directions;
+  \item field identity, gauge, periodicity, and diagnostic recomputation;
+  \item checksum corruption detection;
+  \item duplicate physical-case grouping;
+  \item split disjointness and coverage;
+  \item test-leakage guards for preprocessing dependencies;
+  \item flatten/unflatten exact recovery;
+  \item observation-set reproducibility;
+  \item schema-version acceptance and rejection matrix; and
+  \item migration ancestry and scientific-invariant checks.
+\end{itemize}
+
+\subsection{Completion criteria}
+
+Module~3 implementation is complete only when:
+\begin{enumerate}[label=\arabic*.]
+  \item at least one accepted Module~2 trajectory is serialized and revalidated;
+  \item both languages read the same logical case values and metadata;
+  \item a release manifest passes integrity and membership checks;
+  \item all physical-case groups are assigned exactly once;
+  \item preprocessing proves training-only dependency;
+  \item full field reconstruction from observation indices passes;
+  \item deliberate corruption and leakage cases are rejected; and
+  \item a clean command reproduces the release from recorded configurations.
+\end{enumerate}
+
+\begin{warningbox}
+This physics note freezes the intended contract. The current repository module remains an implementation scaffold until the writers, validators, manifests, and tests above actually exist and pass.
+\end{warningbox}
+
+\section{Worked miniature example}
+\label{sec:worked}
+
+\subsection{A tiny accepted realization}
+
+Suppose a sentinel case has
+\begin{equation}
+N_t=3,qquad N_x=4,qquad N_y=5.
+\end{equation}
+Then every field has shape $[3,4,5]$ and contains $60$ values. Define
+\begin{equation}
+q[n,i,j]=10^4n+10^2i+j.
+\end{equation}
+The entry $q[2,3,4]=20304$. Any exchange of $x$ and $y$, one-based shift, or time-axis reversal changes this expected value.
+
+\subsection{Flatten and invert}
+
+For $(n,i,j)=(2,3,4)$, Equation~\eqref{eq:linear_index} gives
+\begin{equation}
+\ell=(2\cdot4+3)\cdot5+4=59.
+\end{equation}
+Inversion gives
+\begin{align}
+j&=59\bmod5=4,\\
+i&=\left\lfloor59/5\right\rfloor\bmod4=3,\\
+n&=\left\lfloor59/20\right\rfloor=2.
+\end{align}
+Thus the logical last element is recovered exactly, independent of native language indexing.
+
+\subsection{Physical-case grouping example}
+
+Suppose three files share $\eta=10^{-3}$, $\nu=10^{-3}$, $A_0=0.1$ and the same physics definitions:
+\begin{itemize}
+  \item Python $128^2$ production realization;
+  \item MATLAB $128^2$ parity realization; and
+  \item Python $256^2$ refinement realization.
+\end{itemize}
+They have three \code{case\_id} values but one \code{physical\_case\_id}. If the production realization is assigned to training, the other two cannot be used as unseen test cases. They may support training-only verification or be excluded from learning releases.
+
+\subsection{Training-only scale example}
+
+Assume the training observations have
+\begin{equation}
+m_\psi=0.02,qquad s_\psi=0.71.
+\end{equation}
+A held-out value $\psi=0.80$ becomes
+\begin{equation}
+\widetilde\psi=\frac{0.80-0.02}{0.71}\approx1.099.
+\end{equation}
+The fact that this transformed value exceeds one is not an error. Refitting the scale on the held-out case or clipping it would change the evaluation question.
+
+\subsection{Acceptance logic}
+
+If the HDF5 file is structurally valid but the recomputed current gives
+\begin{equation}
+\frac{\norm{J+\Laph\psi}_2}{\norm J_2}=2\times10^{-3}
+\end{equation}
+against a tolerance of $10^{-10}$, the case is rejected or quarantined. It is not repaired by renaming $J$ or loosening the tolerance after seeing the result. The producer or convention mismatch must be diagnosed.
+
+\section{Summary and bridge to Module 4}
+\label{sec:summary}
+
+Module~3 turns accepted numerical trajectories into a stable scientific interface. The canonical case preserves raw dimensionless coordinates, float64 fields, parameters, diagnostics, equations, numerical settings, verification evidence, and provenance. Logical axes are explicitly $[t,x,y]$; $J=-\Lap\psi$ and $\omega=\Lap U$ remain checkable identities; the zero-mean gauge of $U$ is enforced and audited.
+
+The dataset manifest freezes release membership, file integrity, physical-case grouping, split assignment, and preprocessing. Complete physical cases, including all numerical realizations of the same initial-value problem, remain in one partition. Interpolation and extrapolation tests are separated. Every fitted transform uses training data only, remains invertible, and exposes the chain-rule information required by the PINN.
+
+The phrase M3D-C1-shaped is intentionally limited. It means that the workflow anticipates mesh or coordinate metadata, parameters, evolving fields, diagnostics, provenance, and an explicit adapter. It does not identify the synthetic Cartesian potentials with code-native M3D-C1 variables. Genuine exports first remain source-native, then enter a versioned mapping whose geometry, units, signs, gauges, and projection errors are validated.
+
+Module~4 receives this frozen release and constructs the fair data-only baseline. It may sample and standardize the accepted fields, but it cannot change the split, refit scales on held-out cases, erase case identity, or reinterpret the stored physics. Module~5 receives the identical labeled observations and adds physics constraints. That controlled inheritance is the reason Module~3 is part of the scientific method rather than merely storage engineering.
+
+\clearpage
+\appendix
+
+\section{Normative schema dictionary}
+\label{app:dictionary}
+
+\small
+\begin{longtable}{p{0.32\textwidth}p{0.14\textwidth}p{0.13\textwidth}p{0.27\textwidth}}
+\toprule
+Path or attribute & Type & Shape & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Path or attribute & Type & Shape & Meaning \\
+\midrule
+\endhead
+\code{@schema\_name} & UTF-8 & scalar & \code{pinn\_m3dc1.case} \\
+\code{@schema\_version} & UTF-8 & scalar & Case contract version \\
+\code{@source\_kind} & UTF-8 & scalar & \code{synthetic\_reduced\_mhd} \\
+\code{@physical\_case\_id} & UTF-8 & scalar & Physics-equivalence group \\
+\code{@case\_id} & UTF-8 & scalar & Unique numerical realization \\
+\code{@axis\_order} & UTF-8 & scalar & Literal \code{t,x,y} \\
+\dataset{coordinates/x} & float64 & $[N_x]$ & Half-open periodic $x$ grid \\
+\dataset{coordinates/y} & float64 & $[N_y]$ & Half-open periodic $y$ grid \\
+\dataset{coordinates/t} & float64 & $[N_t]$ & Explicit saved times \\
+\dataset{fields/psi} & float64 & $[N_t,N_x,N_y]$ & Magnetic-flux function \\
+\dataset{fields/U} & float64 & $[N_t,N_x,N_y]$ & Zero-mean stream function \\
+\dataset{fields/J} & float64 & $[N_t,N_x,N_y]$ & $-\Lap\psi$ \\
+\dataset{fields/omega} & float64 & $[N_t,N_x,N_y]$ & $+\Lap U$ \\
+\dataset{parameters/eta} & float64 & scalar & Magnetic diffusivity \\
+\dataset{parameters/nu} & float64 & scalar & Kinematic viscosity \\
+\dataset{parameters/A0} & float64 & scalar & Initial flow amplitude \\
+\dataset{parameters/psi\_eq} & float64 & scalar & Equilibrium flux amplitude \\
+\dataset{diagnostics/time\_series/*} & float64 & $[N_t]$ & Time-aligned diagnostic \\
+\makecell[l]{\code{/diagnostics/events/*/}\\\code{present}} & uint8 & scalar & $0$ or $1$ \\
+\makecell[l]{\code{/diagnostics/events/*/}\\\code{time}} & float64 & scalar & Event time if present \\
+\makecell[l]{\code{/diagnostics/events/*/}\\\code{snapshot\_index}} & int64 & scalar & Zero-based nearest/indexed snapshot \\
+\dataset{physics/*} & mixed & scalar & Equations, IC, BC, gauge, normalization \\
+\dataset{numerics/*} & mixed & scalar & Grid, FFT, integrator, precision \\
+\dataset{verification/*} & mixed & scalar & Criteria, values, tolerances, flags \\
+\dataset{provenance/*} & mixed & scalar & Source, config, platform, ancestry \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Illustrative dataset manifest}
+\label{app:manifest}
+
+The example below is explanatory. The machine implementation is validated against the separately versioned manifest schema.
+
+\begin{verbatim}
+{
+  "schema_name": "pinn_m3dc1.dataset_manifest",
+  "schema_version": "1.0.0",
+  "dataset_id": "island-coalescence-synthetic-v1",
+  "release_version": "1.0.0",
+  "case_schema_requirement": ">=1.0.0,<2.0.0",
+  "physics_compatibility": {
+    "equations_version": "reduced_mhd_v1",
+    "conventions_version": "conventions_v1",
+    "physical_normalization": "dimensionless_v1"
+  },
+  "cases": [
+    {
+      "path": "cases/syn-r-54b3027976ad.h5",
+      "sha256": "<64 lowercase hexadecimal characters>",
+      "physical_case_id": "syn-p-8f3a10c64e9b",
+      "case_id": "syn-r-54b3027976ad",
+      "parameters": {"eta": 0.001, "nu": 0.001, "A0": 0.1},
+      "split": "train",
+      "acceptance_status": "accepted"
+    }
+  ],
+  "split_manifest": {
+    "unit": "physical_case_id",
+    "algorithm": "designed_parameter_split_v1",
+    "train": ["syn-p-8f3a10c64e9b"],
+    "validation": [],
+    "test_interpolation": [],
+    "test_extrapolation": []
+  },
+  "preprocessing": {
+    "fit_partition": "train",
+    "view_version": "coordinate_mlp_v1",
+    "record_path": "preprocessing/coordinate_mlp_v1.json"
+  }
+}
+\end{verbatim}
+
+\section{Compatibility decision table}
+\label{app:compatibility}
+
+\begin{longtable}{p{0.42\textwidth}p{0.16\textwidth}p{0.32\textwidth}}
+\toprule
+Change & Version effect & Reason \\
+\midrule
+\endfirsthead
+\toprule
+Change & Version effect & Reason \\
+\midrule
+\endhead
+Correct prose without changing machine interpretation & Patch & No instance meaning changes \\
+Add an optional diagnostic with a unique path & Minor & Old readers can ignore it safely \\
+Add a new required dataset & Major & Old valid instances no longer satisfy the contract \\
+Rename \code{psi} to \code{flux} & Major & Required path changes \\
+Change axis order to $[t,y,x]$ & Major & Every field index changes meaning \\
+Change float64 reference fields to float32 & Major & Precision contract changes \\
+Change current sign & Major plus conventions version & Physical meaning changes \\
+Change IC formula at the same parameters & IC version and new physical ID & Different initial-value problem \\
+Add accepted cases without changing schema & Dataset release increment & Membership changes, schema does not \\
+Move files while preserving relative manifest structure & New packaged release or identical logical release & Byte/path inventory must remain auditable \\
+\bottomrule
+\end{longtable}
+
+\section{Acceptance checklist}
+\label{app:checklist}
+
+\subsection*{Per-case checks}
+
+\begin{enumerate}[label=$\square$]
+  \item Required schema, source, case, physical-case, and axis attributes exist.
+  \item Coordinate arrays are float64, finite, monotone, and consistent with the half-open domain.
+  \item Every field is float64 with logical shape $[N_t,N_x,N_y]$.
+  \item Parameters are finite and agree with the resolved configuration.
+  \item $J=-\Laph\psi$ and $\omega=\Laph U$ pass declared tolerances.
+  \item $U$ satisfies its zero-mean gauge at every saved time.
+  \item Diagnostics recompute within tolerance.
+  \item All required Module~2 verification components pass.
+  \item Provenance, source revision, config digest, and dependencies are present.
+  \item File reopens cleanly after atomic publication.
+\end{enumerate}
+
+\subsection*{Release checks}
+
+\begin{enumerate}[label=$\square$]
+  \item Every manifest file exists, matches its checksum, and is accepted.
+  \item No physical-case identifier appears in more than one partition.
+  \item Every accepted release member has exactly one split assignment.
+  \item Interpolation and extrapolation test labels are reproducible.
+  \item Preprocessing dependencies are a subset of training case identifiers.
+  \item Observation indices are valid and reproduce identical selections.
+  \item Python and MATLAB readers agree on sentinel and production logical arrays.
+  \item Dataset, split, preprocessing, and observation manifests have independent digests.
+  \item Release documentation states the claim boundary and known limitations.
+\end{enumerate}
+
+\section{Symbol table}
+\label{app:symbols}
+
+\small
+\begin{longtable}{p{0.18\textwidth}p{0.53\textwidth}p{0.19\textwidth}}
+\toprule
+Symbol & Meaning & Status \\
+\midrule
+\endfirsthead
+\toprule
+Symbol & Meaning & Status \\
+\midrule
+\endhead
+$x,y$ & Periodic Cartesian coordinates & dimensionless \\
+$t$ & Saved physical time coordinate & dimensionless \\
+$N_x,N_y,N_t$ & Coordinate and snapshot counts & integers \\
+$L_x,L_y$ & Domain periods & $2\pi$ baseline \\
+$\psi$ & Magnetic-flux function & stored float64 \\
+$U$ & Flow stream function & stored float64 \\
+$J$ & Current variable $-\Lap\psi$ & stored/checkable \\
+$\omega$ & Vorticity $+\Lap U$ & stored/checkable \\
+$\eta$ & Magnetic diffusivity & case parameter \\
+$\nu$ & Kinematic viscosity & case parameter \\
+$A_0$ & Initial flow perturbation amplitude & case parameter \\
+$\Psi_{\rm eq}$ & Equilibrium flux amplitude & stored parameter \\
+$\vect\mu$ & Parameter vector $(\eta,\nu,A_0)$ & physical-case input \\
+$\mathcal D$ & Dataset release object & cases plus contracts \\
+$\mathcal P_{\rm tr}$ & Training physical-case set & split \\
+$\mathcal P_{\rm va}$ & Validation physical-case set & split \\
+$\mathcal P_{\rm ti}$ & Interpolation-test physical-case set & split \\
+$\mathcal P_{\rm te}$ & Extrapolation-test physical-case set & split \\
+$m_q,s_q$ & Training-only location and scale for $q$ & preprocessing \\
+$\widetilde q$ & Neural transformed value & derived view \\
+$\ell$ & Canonical zero-based flattened index & integer \\
+$\tau_U$ & Gauge tolerance & versioned criterion \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Acronym and terminology table}
+\label{app:acronyms}
+
+\begin{longtable}{p{0.22\textwidth}p{0.68\textwidth}}
+\toprule
+Term & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Term & Meaning \\
+\midrule
+\endhead
+API & Application programming interface \\
+Canonical & The authoritative representation defined by the current contract \\
+Case & One complete numerical realization unless qualified as physical case \\
+Checksum & Digest used to detect changed bytes or logical payloads \\
+Dataset & A complete release, or an HDF5 multidimensional array when used in HDF5 context \\
+FAIR & Findable, Accessible, Interoperable, and Reusable data principles \\
+Gauge & Convention fixing a physically irrelevant additive freedom \\
+HDF5 & Hierarchical Data Format version 5 \\
+I/O & Input/output \\
+IC & Initial condition \\
+JSON & JavaScript Object Notation, a language-independent text interchange format \\
+Manifest & Authoritative index of release membership and relationships \\
+M3D-C1 & Extended-MHD simulation framework based on high-order $C^1$ finite elements \\
+MHD & Magnetohydrodynamics \\
+Migration & Versioned conversion from one schema to another \\
+Normalization & Physical nondimensionalization; neural transforms use the separate term preprocessing \\
+Observation set & Immutable selected indices used for one labeled-data budget \\
+PINN & Physics-informed neural network \\
+Provenance & Recorded production and ancestry history of an artifact \\
+Realization & One numerical solution of a physical case under specified numerical settings \\
+RMHD & Reduced magnetohydrodynamics; the exact reduction must be stated \\
+Schema & Versioned rules for required names, types, shapes, and meanings \\
+SHA-256 & Secure Hash Algorithm with a 256-bit digest, used here for integrity \\
+Split leakage & Held-out information entering training, design, or preprocessing \\
+UTF-8 & Unicode text encoding used by manifest and metadata strings \\
+View & Reproducible derived representation for a learning task \\
+\bottomrule
+\end{longtable}
+
+\section{Concept questions and answer sketches}
+\label{app:questions}
+
+\subsection*{Questions}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Why is a field name a physical statement?
+  \item Why are both \code{physical\_case\_id} and \code{case\_id} required?
+  \item Why can a square grid hide an axis transposition?
+  \item Why are the canonical fields not standardized in place?
+  \item Why are $J$ and $\omega$ stored if they can be derived?
+  \item What is the difference between physical nondimensionalization and neural preprocessing?
+  \item Why does the time array remain authoritative even with a recorded save interval?
+  \item Why is the file checksum stored outside the HDF5 file?
+  \item Why must missing acceptance metadata fail closed?
+  \item Why is a random point split not an unseen-case test?
+  \item Why do refinement and parity realizations belong to the same split group?
+  \item When can a held-out parameter vector be called interpolation?
+  \item Why are test-fitted means a form of leakage?
+  \item Why must observation indices retain case and grid identity?
+  \item Why is a padded zero not necessarily a physical zero?
+  \item What is the difference between I/O round-trip parity and solver parity?
+  \item Which schema changes require a major version increment?
+  \item Why does a matching checksum not prove correct physics?
+  \item What does M3D-C1-shaped mean in this project?
+  \item Why must a genuine M3D-C1 export remain source-native before adaptation?
+  \item What additional evidence is required for an M3D-C1 surrogate claim?
+\end{enumerate}
+
+\subsection*{Answer sketches}
+
+\begin{enumerate}[label=\textbf{A\arabic*.}]
+  \item The name selects a definition, sign, normalization, gauge, and relationship to other fields; numbers alone do not.
+  \item One groups scientifically equivalent problems for leakage control; the other identifies a particular numerical artifact.
+  \item Exchanging equal-length axes preserves shape, and symmetry can preserve visual appearance.
+  \item Standardization is training-release dependent and can be regenerated; overwriting destroys the reference and complicates physics derivatives.
+  \item They permit derivative-sensitive evaluation, stale-field detection, and independent consistency audits.
+  \item The first defines the dimensionless PDE; the second conditions numerical optimization and must be inverted.
+  \item Adaptive or event-aligned output may not be uniform, and explicit coordinates prevent reconstruction ambiguity.
+  \item A closed file cannot contain the digest of its own final bytes without changing those bytes.
+  \item Eligibility requires affirmative evidence; absence cannot be interpreted as success.
+  \item It places correlated points from the same parameter trajectory in both training and test.
+  \item They solve the same physical initial-value problem and would otherwise create near-duplicate leakage.
+  \item Under the primary rule, when it lies inside the convex hull of training parameter vectors; axis-wise labels supplement this.
+  \item They use target-distribution information from a supposedly untouched case.
+  \item Full fields, case-balanced losses, and exact audit require reversible mapping to parent arrays.
+  \item Padding is a tensor-shape device and must be masked; zero may be a valid field value.
+  \item Round-trip parity checks serialization; solver parity compares independently computed numerical solutions.
+  \item Changes to required names, axes, dtypes, signs, units, shapes, or physical meanings.
+  \item Integrity says bytes are unchanged, not that the original interpretation was correct.
+  \item The workflow has an export-like field/coordinate/parameter/provenance interface while using synthetic reduced-MHD data.
+  \item The original mesh, units, names, and metadata are needed to validate any later translation and measure information loss.
+  \item Genuine independent exports, a validated adapter, known equations and closures, held-out M3D-C1 cases, and renewed scoring.
+\end{enumerate}
+
+\section{References and standards}
+\label{app:references}
+
+\begin{thebibliography}{9}
+
+\bibitem{HDFPreservation}
+M. Folk and E. Pourmal,
+``Balancing Performance and Preservation: Lessons Learned with HDF5,''
+US DPIF Workshop, NIST, Gaithersburg, Maryland, 2010,
+\url{https://docs.hdfgroup.org/archive/support/pubs/papers/HDFandpreservation_NIST_2010_paper_Folk.pdf}.
+
+\bibitem{RFC8259}
+T. Bray,
+``The JavaScript Object Notation (JSON) Data Interchange Format,''
+RFC 8259, Internet Standard, December 2017,
+\url{https://www.rfc-editor.org/info/rfc8259/}.
+
+\bibitem{JCS}
+A. Rundgren, B. Jordan, and S. Erdtman,
+``JSON Canonicalization Scheme (JCS),''
+RFC 8785, June 2020,
+\url{https://www.rfc-editor.org/info/rfc8785/}.
+
+\bibitem{SemVer}
+T. Preston-Werner,
+``Semantic Versioning 2.0.0,''
+\url{https://semver.org/}.
+
+\bibitem{FAIR}
+M. D. Wilkinson et al.,
+``The FAIR Guiding Principles for scientific data management and stewardship,''
+\emph{Scientific Data}, volume 3, article 160018, 2016,
+\url{https://doi.org/10.1038/sdata.2016.18}.
+
+\end{thebibliography}
+
+\end{document}
