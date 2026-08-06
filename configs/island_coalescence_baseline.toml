@@ -13,6 +13,8 @@ periodic_y = true
 eta = 0.001
 nu = 0.001
 A0 = 0.1
+psi_eq = 1.0
+initial_condition = "periodic_island_coalescence_v1"
 normalization = "dimensionless_v1"
 sign_convention = "docs/equations_and_conventions.md"
 
@@ -21,13 +23,12 @@ method = "pseudo_spectral"
 nx = 128
 ny = 128
 dealiasing = "two_thirds"
-time_integrator = "to_be_selected"
+time_integrator = "classical_rk4"
 dt = 0.001
-t_final = 5.0
+t_final = 8.0
 save_interval = 0.05
 
 [output]
 format = "hdf5"
 fields = ["psi", "U", "J", "omega"]
 diagnostics = ["magnetic_energy", "kinetic_energy", "peak_current", "reconnected_flux"]
-
