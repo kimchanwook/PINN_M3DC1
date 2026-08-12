@@ -15,11 +15,9 @@ trap cleanup_latex_intermediates EXIT
 latexmk -pdf -interaction=nonstopmode -halt-on-error project_plan.tex
 (
   cd docs/physics_notes
-  latexmk -pdf -interaction=nonstopmode -halt-on-error module2_synthetic_mhd_solver_and_case_generation.tex
-  latexmk -pdf -interaction=nonstopmode -halt-on-error module3_dataset_contracts_and_m3dc1_shaped_io.tex
-  latexmk -pdf -interaction=nonstopmode -halt-on-error module4_data_only_surrogate_baseline.tex
-  latexmk -pdf -interaction=nonstopmode -halt-on-error module5_physics_informed_surrogate.tex
-  latexmk -pdf -interaction=nonstopmode -halt-on-error modules1_2_3_4_5_summary_slides.tex
+  latexmk -pdf -interaction=nonstopmode -halt-on-error module2_generate_and_save_mhd_data.tex
+  latexmk -pdf -interaction=nonstopmode -halt-on-error module3_physics_informed_surrogate.tex
+  latexmk -pdf -interaction=nonstopmode -halt-on-error modules1_2_3_summary_slides.tex
   latexmk -pdf -interaction=nonstopmode -halt-on-error module1_reduced_resistive_mhd_physics_and_conventions.tex
 )
 
@@ -28,11 +26,9 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error project_plan.tex
 if command -v pdfinfo >/dev/null 2>&1; then
   pdfinfo project_plan.pdf >/dev/null
   pdfinfo docs/physics_notes/module1_reduced_resistive_mhd_physics_and_conventions.pdf >/dev/null
-  pdfinfo docs/physics_notes/module2_synthetic_mhd_solver_and_case_generation.pdf >/dev/null
-  pdfinfo docs/physics_notes/module3_dataset_contracts_and_m3dc1_shaped_io.pdf >/dev/null
-  pdfinfo docs/physics_notes/module4_data_only_surrogate_baseline.pdf >/dev/null
-  pdfinfo docs/physics_notes/module5_physics_informed_surrogate.pdf >/dev/null
-  pdfinfo docs/physics_notes/modules1_2_3_4_5_summary_slides.pdf >/dev/null
+  pdfinfo docs/physics_notes/module2_generate_and_save_mhd_data.pdf >/dev/null
+  pdfinfo docs/physics_notes/module3_physics_informed_surrogate.pdf >/dev/null
+  pdfinfo docs/physics_notes/modules1_2_3_summary_slides.pdf >/dev/null
 fi
 cleanup_latex_intermediates
 trap - EXIT

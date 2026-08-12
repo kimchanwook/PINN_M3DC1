@@ -16,10 +16,13 @@ from pinn_m3dc1.common.scaffold import ScaffoldModule
 class BackboneTests(unittest.TestCase):
     def test_registry_is_valid(self) -> None:
         validate_registry()
-        self.assertEqual(len(MODULE_SPECS), 7)
+        self.assertEqual(len(MODULE_SPECS), 5)
 
     def test_nominal_order_is_numbered(self) -> None:
-        self.assertEqual(nominal_startup_order(), tuple(f"module_{i}" for i in range(1, 8)))
+        self.assertEqual(
+            nominal_startup_order(),
+            ("module_1", "module_2", "module_3", "module_4", "module_5"),
+        )
 
     def test_shared_state_contract(self) -> None:
         state = ProjectState()
@@ -43,4 +46,3 @@ class BackboneTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

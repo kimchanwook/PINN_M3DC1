@@ -14,9 +14,10 @@ end
 if numel(unique(packages)) ~= numel(packages)
     error('pinn_m3dc1:DuplicateModulePackage', 'Module package names must be unique.');
 end
-if ~isequal(sort(numbers), 1:numel(specs))
+expectedNumbers = 1:max(numbers);
+if ~isequal(sort(numbers), expectedNumbers)
     error('pinn_m3dc1:InvalidModuleNumbers', ...
-        'Module numbering must be contiguous and start at 1.');
+        'Active module numbers must be consecutive.');
 end
 for i = 1:numel(specs)
     unknown = setdiff(specs(i).dependencies, ids);
@@ -34,4 +35,3 @@ for i = 1:numel(specs)
     end
 end
 end
-

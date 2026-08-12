@@ -18,13 +18,12 @@ end
 function testRegistryIsValid(testCase)
 pinn_m3dc1.common.validate_registry();
 specs = pinn_m3dc1.common.registry();
-verifyEqual(testCase, numel(specs), 7);
+verifyEqual(testCase, numel(specs), 5);
 end
 
 function testNominalOrderIsNumbered(testCase)
 actual = pinn_m3dc1.common.nominal_startup_order();
-expected = arrayfun(@(i) sprintf('module_%d', i), 1:7, ...
-    'UniformOutput', false);
+expected = {'module_1', 'module_2', 'module_3', 'module_4', 'module_5'};
 verifyEqual(testCase, actual, expected);
 end
 
@@ -53,4 +52,3 @@ for i = 1:numel(specs)
     verifyEqual(testCase, module.moduleId, specs(i).id);
 end
 end
-
