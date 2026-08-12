@@ -6,11 +6,11 @@
 \DocTitle{Project Plan}{PINN\_M3DC1}{Physics-informed surrogate architecture for M3D-C1-shaped nonlinear resistive-MHD workflows}
 
 \begin{overviewbox}
-\textbf{Purpose.} This is the living roadmap for \texttt{PINN\_M3DC1}. The project begins with a verified two-dimensional reduced-MHD benchmark and a fair data-only-versus-PINN comparison. Genuine M3D-C1 exports enter only through a later adapter and require a new validation claim.
+\textbf{Purpose.} This is the living roadmap for \texttt{PINN\_M3DC1}. The project begins with a verified two-dimensional reduced-MHD benchmark. One surrogate is then trained first with simulation data alone and then with the reduced-MHD equations and known conditions added to its loss. Genuine M3D-C1 exports enter only through a later adapter and require a new validation claim.
 \end{overviewbox}
 
 \begin{notebox}
-\textbf{Current status.} Physics notes for Modules~1 through~5 are complete. Module~2 freezes the synthetic solver and verification specification; Module~3 freezes canonical cases, provenance, whole-case splits, preprocessing, versioning, and the M3D-C1 adapter boundary; Modules~4 and~5 freeze the fair data-only-versus-PINN experiment. All numerical and learning modules remain implementation scaffolds: no MHD solver, data pipeline, or trained surrogate is yet claimed.
+\textbf{Current status.} Notes for Modules~1, 2, and~3 are complete. Module~2 combines simulation, checking, saving, and data grouping. Module~3 combines the former data-only and physics-informed surrogate modules because the baseline is simply the same model with the physics-loss weights set to zero. Validation and M3D-C1 transfer are now Modules~4 and~5. No MHD solver, data pipeline, or trained neural network is yet implemented.
 \end{notebox}
 
 \ProjectTOC
@@ -41,23 +41,21 @@ The first nonlinear case is magnetic-island coalescence. It is small enough for 
 \textbf{No.} & \textbf{Module} & \textbf{Purpose}\\
 \midrule
 1 & Reduced Resistive-MHD Physics and Conventions & Freeze variables, signs, normalization, boundary conditions, invariants, and diagnostic definitions.\\
-2 & Synthetic MHD Solver and Case Generation & Generate verified periodic island-coalescence trajectories and convergence evidence.\\
-3 & Dataset Contracts and M3D-C1-Shaped I/O & Store fields, parameters, coordinates, provenance, splits, and normalization in versioned schemas.\\
-4 & Data-Only Surrogate Baseline & Establish the fair parameterized neural baseline on complete held-out parameter cases.\\
-5 & Physics-Informed Surrogate & Add PDE, initial, boundary, and optional global-balance constraints to the same learning task.\\
-6 & Validation, Diagnostics, and Benchmarking & Compare field accuracy, physical histories, residuals, generalization, runtime, and ablations.\\
-7 & M3D-C1 Export Adapter and Transfer Learning & Map genuine exported fields and metadata into the project contract without silently changing physical meaning.\\
+2 & Generate and Save MHD Simulation Data & Run checked island-coalescence cases, save the numerical arrays and settings, and divide complete simulations into training, validation, and test groups.\\
+3 & Physics-Informed Surrogate & Use one model for both settings: $\mathcal L_{\rm data}$ alone is the baseline; adding the two PDE residuals, the initial condition, and the gauge makes it physics-informed.\\
+4 & Validation, Diagnostics, and Benchmarking & Compare field accuracy, physical histories, residuals, generalization, runtime, and individual loss-term tests.\\
+5 & M3D-C1 Export Adapter and Transfer Learning & Map genuine exported fields and metadata into the project contract without silently changing physical meaning.\\
 \bottomrule
 \end{longtable}
 \normalsize
 \end{singlespace}
 
 \section{Data and model contract}
-A synthetic case stores $(x,y,t)$, $\psi$, $U$, $J$, $\omega$, $\eta$, $\nu$, $A_0$, normalization, discretization, boundary conditions, solver provenance, and diagnostic histories. The initial surrogate is
+A synthetic case stores $(x,y,t)$, $\psi$, $U$, $J$, $\omega$, $\eta$, $\nu$, $A_0$, the initial conditions, and the solver settings. The neural-network task is
 \begin{equation}
- (x,y,t,\eta,\nu,A_0)\longmapsto(\widehat\psi,\widehat U),
+ (\psi_0,U_0,\eta,\nu,t)\longmapsto(\widehat\psi(t),\widehat U(t)),
 \end{equation}
-with $\widehat J$ and $\widehat\omega$ derived by automatic differentiation. Plot images are not training data because they omit the numerical field values and metadata needed to define this map.
+with $\widehat J=-\nabla^2\widehat\psi$ and $\widehat\omega=\nabla^2\widehat U$. Plot images are not training data because they do not contain the complete numerical field values.
 
 \section{Controlled comparison}
 \begin{center}
@@ -66,8 +64,8 @@ with $\widehat J$ and $\widehat\omega$ derived by automatic differentiation. Plo
 \textbf{Model} & \textbf{Data loss} & \textbf{Physics losses} & \textbf{Role}\\
 \midrule
 Reduced-MHD solver & -- & Discretized equations & Synthetic reference\\
-Data-only network & yes & no & Fair neural baseline\\
-Parameterized PINN & yes & PDE/IC/BC & Physics-information test\\
+Module 3, data-only setting & yes & no & Fair neural baseline\\
+Module 3, physics-informed setting & yes & PDE/IC/gauge & Physics-information test\\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -79,20 +77,20 @@ The reference solver must pass derivative, bracket, periodicity, divergence, con
 \clearpage
 \section{Implementation sequence}
 \begin{enumerate}[leftmargin=2em]
-\item Freeze equations, normalization, case schema, and diagnostic definitions.
-\item Implement the independent pseudo-spectral solver in Python and MATLAB.
-\item Produce one converged island-coalescence reference trajectory.
-\item Generate a parameter sweep and freeze whole-case data splits.
-\item Train the data-only parameterized baseline.
-\item Debug a single-case PINN, then train the parameterized PINN.
-\item Run ablations, generalization tests, uncertainty checks, and cost analysis.
+\item Freeze the equations and signs.
+\item Implement the solver in Python and MATLAB.
+\item Produce one checked island-coalescence simulation and save it.
+\item Generate more cases and divide complete simulations into training, validation, and test groups.
+\item Train the Module~3 model using $\mathcal L_{\rm data}$ alone.
+\item Turn on the two PDE residual losses, the initial-condition loss, and the gauge loss.
+\item Test optional constraints one at a time, then run generalization and cost analysis.
 \item Add and validate an adapter only when genuine M3D-C1 arrays are available.
 \end{enumerate}
 
 \section{Acceptance milestones}
 \textbf{M1 -- synthetic solver.} One command writes a reproducible HDF5 case and diagnostics; refinement and dissipation checks pass.
 
-\textbf{M2 -- fair learning experiment.} Data-only and PINN models share cases, samples, capacity assumptions, and scoring.
+\textbf{M2 -- fair learning experiment.} The data-only and physics-informed settings of Module~3 share cases, samples, model assumptions, and scoring.
 
 \textbf{M3 -- held-out validation.} Field and physics metrics are reported on unseen parameter combinations, with interpolation separated from extrapolation.
 

@@ -10,27 +10,17 @@ independent two-dimensional reduced-MHD solver, compare a data-only surrogate
 with a parameterized PINN, and preserve an interface through which genuine
 M3D-C1 exports can later enter the same training and validation pipeline.
 
-This repository follows the architecture of `Kinetic_MHD_PINN`: a living
-project roadmap, shared documentation style, module-by-module physics and
-implementation notes, mirrored Python and MATLAB trees, version-controlled
-cases and configurations, explicit data contracts, tests, outputs, and
-reference material.
+The repository contains the project plan, physics notes, matching Python and
+MATLAB folders, tests, settings, and output folders.
 
 ## Current status
 
-The version-0.1 repository backbone is established. Its module registry,
-cross-module state contract, Python/MATLAB directory parity, configuration
-skeleton, scientific claim hierarchy, and reduced-MHD sign conventions are
-documented and tested. Physics notes for Modules 1 through 5 are complete under
-`docs/physics_notes/`. Module 2 freezes the periodic island-coalescence case,
-pseudo-spectral numerical method, diagnostics, and verification criteria.
-Module 3 freezes the canonical HDF5 case schema, physical-case identities,
-provenance, whole-case splits, learning-view normalization, versioning, and the
-boundary between M3D-C1-shaped I/O and genuine M3D-C1 equivalence. Modules 4
-and 5 freeze the controlled data-only-versus-PINN experiment before
-implementation. No numerical MHD solver, data pipeline, or trained neural
-surrogate is yet claimed as implemented. The first numerical milestone remains
-Module 2: a verified periodic pseudo-spectral island-coalescence solver.
+The project now has five consecutive modules. Module 2 combines simulation and
+data handling. Module 3 combines the old data-only baseline and physics-informed
+training modules: the baseline is the same model trained with only the data
+loss, while the physics-informed version turns on the reduced-MHD residual and
+condition losses. The former Modules 6 and 7 are renumbered as Modules 4 and 5.
+No MHD solver, data pipeline, or trained neural network is yet implemented.
 
 ## Maintained architecture documents
 
@@ -39,7 +29,7 @@ Module 2: a verified periodic pseudo-spectral island-coalescence solver.
 - `docs/project_charter.md` - claims, comparisons, validation rules, and scope
 - `docs/equations_and_conventions.md` - frozen version-1 variables and signs
 - `docs/shared/project_style.tex` - common LaTeX styling
-- `docs/physics_notes/` - module-by-module physics notes; Modules 1 through 5 are complete
+- `docs/physics_notes/` - physics notes for Modules 1, 2, and 3
 - `docs/implementation_notes/` - future module implementation contracts
 
 ## High-level code structure
@@ -59,12 +49,10 @@ Module 2: a verified periodic pseudo-spectral island-coalescence solver.
 ## Module architecture
 
 1. Reduced Resistive-MHD Physics and Conventions
-2. Synthetic MHD Solver and Case Generation
-3. Dataset Contracts and M3D-C1-Shaped I/O
-4. Data-Only Surrogate Baseline
-5. Physics-Informed Surrogate
-6. Validation, Diagnostics, and Benchmarking
-7. M3D-C1 Export Adapter and Transfer Learning
+2. Generate and Save MHD Simulation Data
+3. Physics-Informed Surrogate, including the data-only baseline
+4. Validation, Diagnostics, and Benchmarking
+5. M3D-C1 Export Adapter and Transfer Learning
 
 ## Scientific comparison
 
@@ -74,26 +62,28 @@ splits, data budgets, and approximately comparable network capacity.
 | Model | Data loss | PDE/IC/BC losses | Role |
 | --- | ---: | ---: | --- |
 | Reduced-MHD solver | N/A | Numerical discretization | Synthetic reference |
-| Data-only network | Yes | No | Fair neural baseline |
-| Parameterized PINN | Yes | Yes | Test the value of physics constraints |
+| Data-only setting of Module 3 | Yes | No | Fair neural baseline |
+| Physics-informed setting of Module 3 | Yes | Yes | Test the value of physics constraints |
 
-The initial map is
+The neural-network task is
 
 ```text
-(x, y, t, eta, nu, A0) -> (psi, U)
+(psi_initial, U_initial, eta, nu, time) -> (psi, U) at that time
 ```
 
 with derived current `J = -laplacian(psi)` and vorticity
-`omega = laplacian(U)`. Complete parameter combinations, not randomly chosen
-space-time points from every case, are held out for generalization tests.
+`omega = laplacian(U)`. Complete simulations, not randomly selected times from
+every simulation, are held out for testing.
 
 ## First numerical milestone
 
-Module 2 is complete when one command generates a reproducible HDF5
-island-coalescence case and diagnostics for `psi`, `U`, `J`, `omega`,
-magnetic energy, kinetic energy, peak current, and reconnected flux. Grid/time
-convergence and dissipative energy behavior must be checked before those cases
-are used as learning targets.
+Module 2 is complete when one command runs and saves an island-coalescence
+case, the numerical checks pass, and the saved file can be reopened without
+changing or reordering the arrays.
+
+Module 3 is complete when the same model can be trained first with only
+`L_data`, then with the two PDE residual losses, the initial-condition loss,
+and the gauge constraint turned on and reported separately.
 
 ## Python scaffold smoke test
 
