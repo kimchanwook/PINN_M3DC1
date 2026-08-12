@@ -27,54 +27,50 @@
 \setbeamercolor{block title example}{fg=white,bg=AccentTeal}
 \setbeamercolor{block body example}{fg=BodyGray,bg=SoftTeal}
 
-% User preference: titles should not consume slide space.  The frame title is
-% intentionally the same size as the body text.
-\newcommand{\bodyfs}{\fontsize{10.9}{12.7}\selectfont}
-\newcommand{\smallbodyfs}{\fontsize{10.4}{12.1}\selectfont}
-\newcommand{\tinybodyfs}{\fontsize{9.8}{11.4}\selectfont}
-\setbeamerfont{normal text}{size=\fontsize{10.9}{12.7}\selectfont}
-\setbeamerfont{frametitle}{size=\fontsize{10.9}{12.7}\selectfont,series=\bfseries}
-\setbeamerfont{block title}{size=\fontsize{10.7}{12.4}\selectfont,series=\bfseries}
-\setbeamerfont{block body}{size=\fontsize{10.4}{12.1}\selectfont}
-\setbeamerfont{footline}{size=\fontsize{8.6}{10.2}\selectfont}
+% User requested title size comparable to the body size.
+\setbeamerfont{normal text}{size=\fontsize{12.2}{14.6}\selectfont}
+\setbeamerfont{frametitle}{size=\fontsize{12.2}{14.6}\selectfont,series=\bfseries}
+\setbeamerfont{block title}{size=\fontsize{11.4}{13.5}\selectfont,series=\bfseries}
+\setbeamerfont{block body}{size=\fontsize{10.9}{13.0}\selectfont}
+\setbeamerfont{footline}{size=\fontsize{8.6}{10.0}\selectfont}
 
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{itemize item}{\color{AccentTeal}$\blacktriangleright$}
 \setbeamertemplate{itemize subitem}{\color{AccentTeal}$\bullet$}
-\setlength{\leftmargini}{1.15em}
-\setlength{\leftmarginii}{1.05em}
-\setlength{\parskip}{0.02em}
-\setlength{\tabcolsep}{3pt}
+\setlength{\leftmargini}{1.05em}
+\setlength{\leftmarginii}{1.0em}
+\setlength{\parskip}{0.03em}
 
 \newcommand{\bracket}[2]{\left[#1,#2\right]}
 \newcommand{\dd}{\,\mathrm{d}}
-\newcommand{\average}[1]{\left\langle #1\right\rangle}
+\newcommand{\avg}[1]{\left\langle #1\right\rangle}
 \newcommand{\Rpsi}{R_{\psi}}
 \newcommand{\Romega}{R_{\omega}}
 \newcommand{\vect}[1]{\bm{#1}}
 \newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\OmegaD}{\Omega=[0,2\pi)\times[0,2\pi)}
+\newcommand{\stateop}{(\psi_0,U_0,\eta,\nu,t)\mapsto(\psi_t,U_t)}
 \newcommand{\currentmodule}{Module 1}
-\newcommand{\moduleprogress}{1 of 6}
+\newcommand{\moduleprogress}{1 of 4}
 \newcommand{\setmodule}[2]{%
   \renewcommand{\currentmodule}{#1}%
   \renewcommand{\moduleprogress}{#2}%
 }
 
 \setbeamertemplate{frametitle}{%
-  \vspace{0.025cm}
+  \vspace{0.06cm}
   \usebeamerfont{frametitle}\insertframetitle\par
-  \vspace{-0.075cm}
-  {\color{AccentTeal}\rule{\textwidth}{0.45pt}}
-  \vspace{-0.16cm}
+  \vspace{-0.20cm}
+  {\color{AccentTeal}\rule{\textwidth}{0.55pt}}
 }
 
 \setbeamertemplate{footline}{%
   \leavevmode
   \hbox{%
-    \begin{beamercolorbox}[wd=.45\paperwidth,ht=2.5ex,dp=1.0ex,leftskip=.45cm]{author in head/foot}%
+    \begin{beamercolorbox}[wd=.48\paperwidth,ht=2.6ex,dp=1.05ex,leftskip=.45cm]{author in head/foot}%
       \usebeamerfont{footline}\color{TitleBlue}\textbf{PINN\_M3DC1}\hspace{0.45em}|\hspace{0.45em}\currentmodule
     \end{beamercolorbox}%
-    \begin{beamercolorbox}[wd=.55\paperwidth,ht=2.5ex,dp=1.0ex,rightskip=.45cm plus1fil]{date in head/foot}%
+    \begin{beamercolorbox}[wd=.52\paperwidth,ht=2.6ex,dp=1.05ex,rightskip=.45cm plus1fil]{date in head/foot}%
       \usebeamerfont{footline}\color{BodyGray}\moduleprogress\hspace{0.8em}\textbullet\hspace{0.8em}Slide \insertframenumber\ of \inserttotalframenumber
     \end{beamercolorbox}%
   }
@@ -82,546 +78,339 @@
 
 \setbeamersize{text margin left=0.60cm,text margin right=0.60cm}
 \AtBeginDocument{%
-  \setlength{\abovedisplayskip}{0.20em}%
-  \setlength{\belowdisplayskip}{0.20em}%
-  \setlength{\abovedisplayshortskip}{0.12em}%
-  \setlength{\belowdisplayshortskip}{0.12em}%
+  \setlength{\abovedisplayskip}{0.22em}%
+  \setlength{\belowdisplayskip}{0.22em}%
+  \setlength{\abovedisplayshortskip}{0.16em}%
+  \setlength{\belowdisplayshortskip}{0.16em}%
 }
-\title{Modules 1--5 Summary}
-\subtitle{Reduced-MHD physics, verified trajectories, data contracts, and matched neural surrogates}
-\author{PINN\_M3DC1 Project}
-\date{7 August 2026}
 
 \begin{document}
 
 % --------------------------------------------------------------------------
-% Module 1: six slides
+% Module 1: four slides
 % --------------------------------------------------------------------------
 
-\setmodule{Module 1}{1 of 6}
-\begin{frame}[t]{Module 1: reduced resistive MHD model}
-\bodyfs
-The project uses a deliberately small parent model before making any M3D-C1 claim:
+\setmodule{Module 1}{1 of 4}
+\begin{frame}[t]{Module 1: reduced resistive-MHD state}
+\vspace{-0.15em}
+The project physics is a strict two-dimensional, incompressible, doubly periodic reduced-MHD model:
 \[
-(x,y,t)\in[0,2\pi)\times[0,2\pi)\times[0,T],
-\qquad
-\vect q=(\psi,U),
-\qquad
-\vect\mu=(\eta,\nu,A_0).
+\OmegaD,\qquad t\in[0,T],\qquad \partial_z=0.
 \]
-\begin{itemize}
-  \item Two-dimensional Cartesian domain: all resolved variation is in $(x,y)$; no $z$ dependence is solved.
-  \item Constant density plus incompressibility: the flow is represented by one stream function $U$.
-  \item Strong guide-field ordering: the total magnetic field is a large uniform $B_g\widehat{\vect z}$ plus a smaller in-plane perturbation $\vect B_\perp$.
-  \item Version-1 trajectories are synthetic reduced-MHD data, not direct M3D-C1 output.
-\end{itemize}
+The primary scalar fields are magnetic flux and stream function,
 \[
-\text{goal: }(x,y,t,\eta,\nu,A_0)\mapsto(\psi,U),
-\qquad
-\text{then derive }J,\omega,\vect B_\perp,\vect v_\perp.
+\vect q(x,y,t)=(\psi,U),
 \]
+with derived quantities
+\[
+\vect B_\perp=\nabla\psi\times\widehat{\vect z}=(\psi_y,-\psi_x),\qquad
+\vect v_\perp=\widehat{\vect z}\times\nabla U=(-U_y,U_x),
+\]
+\[
+J=-\nabla^2\psi,\qquad \omega=\nabla^2U,
+\qquad \nabla\cdot\vect B_\perp=\nabla\cdot\vect v_\perp=0.
+\]
+The revised learning direction uses the same physics, but the surrogate input becomes a complete initial field pair rather than only coordinates and scalar case parameters.
 \end{frame}
 
-\setmodule{Module 1}{2 of 6}
-\begin{frame}[t]{Module 1: potentials, fields, and signs}
-\bodyfs
-Two scalar potentials encode the divergence-free physical fields:
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.49\textwidth}
-\textbf{Magnetic perturbation}
+\setmodule{Module 1}{2 of 4}
+\begin{frame}[t]{Module 1: brackets and governing equations}
+\vspace{-0.15em}
+The two-dimensional bracket is
 \[
-\vect B_\perp=\nabla\psi\times\widehat{\vect z}
-=(\psi_y,-\psi_x),
-\quad
-\nabla\cdot\vect B_\perp=0.
+\bracket{f}{g}=f_xg_y-f_yg_x,
+\qquad
+\vect v_\perp\cdot\nabla f=\bracket{U}{f}.
+\]
+Thus nonlinear advection appears compactly as a Poisson bracket. The frozen sign convention is
+\[
+\boxed{\psi_t+\bracket{U}{\psi}=\eta\nabla^2\psi,}
 \]
 \[
+\boxed{\omega_t+\bracket{U}{\omega}=\bracket{J}{\psi}+\nu\nabla^2\omega,}
+\qquad
 J=-\nabla^2\psi,
-\qquad
-\text{out-of-plane current density.}
-\]
-\end{column}
-\begin{column}{0.49\textwidth}
-\textbf{Center-of-mass flow}
-\[
-\vect v_\perp=\widehat{\vect z}\times\nabla U
-=(-U_y,U_x),
 \quad
-\nabla\cdot\vect v_\perp=0.
+\omega=\nabla^2U.
+\]
+Interpretation:
+\[
+\bracket{U}{\psi}:\text{ flux advection},\quad
+\eta\nabla^2\psi=-\eta J:\text{ resistive slippage},
 \]
 \[
-\omega=\nabla^2U,
-\qquad
-\text{out-of-plane vorticity.}
+\bracket{J}{\psi}:\text{ curl of Lorentz force},\quad
+\nu\nabla^2\omega:\text{ viscous vorticity diffusion}.
 \]
-\end{column}
-\end{columns}
-\[
-\vect B=B_g\widehat{\vect z}+\vect B_\perp,
-\qquad
-B_g=\text{constant background},
-\qquad
-\psi=\text{evolving perturbation flux}.
-\]
-Only $(\psi,U)$ are independent neural outputs.  Penalizing or reporting $J$ and $\omega$ tests derivative fidelity, not extra labels.
 \end{frame}
 
-\setmodule{Module 1}{3 of 6}
-\begin{frame}[t]{Module 1: bracket form of advection}
-\bodyfs
-\[
-\boxed{\bracket{f}{g}=f_xg_y-f_yg_x}
-\]
-The stream-function velocity turns material advection into a Poisson bracket:
-\[
-\vect v_\perp\cdot\nabla f=(-U_y)f_x+(U_x)f_y=\bracket{U}{f},
-\qquad
-\frac{Df}{Dt}=f_t+\bracket{U}{f}.
-\]
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.49\textwidth}
-\textbf{Algebraic properties}
-\[
-\bracket{f}{g}=-\bracket{g}{f},
-\qquad
-\bracket{f}{f}=0.
-\]
-\[
-\int_\Omega h\bracket{f}{g}\dd A
-=\int_\Omega f\bracket{g}{h}\dd A
-\quad(\text{periodic}).
-\]
-\end{column}
-\begin{column}{0.49\textwidth}
-\textbf{Physical reading}
-\begin{itemize}
-  \item $U$ labels the pattern of fluid circulation.
-  \item $\psi$ labels in-plane magnetic contours.
-  \item Brackets move contours; diffusion changes them.
-\end{itemize}
-\end{column}
-\end{columns}
-Nonlinear brackets redistribute structure and exchange magnetic/kinetic energy; the explicit dissipators set irreversible loss.
-\end{frame}
-
-\setmodule{Module 1}{4 of 6}
-\begin{frame}[t]{Module 1: governing equations and term meanings}
-\bodyfs
-\[
-\boxed{\psi_t+\bracket{U}{\psi}=\eta\nabla^2\psi=-\eta J}
-\]
-\[
-\boxed{\omega_t+\bracket{U}{\omega}=\bracket{J}{\psi}+\nu\nabla^2\omega},
-\qquad
-\omega=\nabla^2U,
-\qquad
-J=-\nabla^2\psi.
-\]
-\begin{itemize}
-  \item $\bracket{U}{\psi}$: magnetic-flux contours are carried by the center-of-mass flow.
-  \item $\eta\nabla^2\psi$: resistive diffusion lets plasma and field lines slip; this is where topology can change.
-  \item $\bracket{U}{\omega}$: vorticity transport by the same incompressible velocity field.
-  \item $\bracket{J}{\psi}$: reduced form of magnetic forcing from $\vect J\times\vect B$.
-  \item $\nu\nabla^2\omega$: viscous smoothing of shear and vorticity.
-\end{itemize}
-The two equations are closed because $(J,\omega,\vect B_\perp,\vect v_\perp)$ are derivatives of $(\psi,U)$.
-\end{frame}
-
-\setmodule{Module 1}{5 of 6}
-\begin{frame}[t]{Module 1: normalization and dimensionless groups}
-\bodyfs
-Use Alfv\'en scales before any machine-learning standardization:
+\setmodule{Module 1}{3 of 4}
+\begin{frame}[t]{Module 1: scales, gauges, and energy}
+\vspace{-0.15em}
+Alfven normalization gives
 \[
 V_A=\frac{B_0}{\sqrt{\mu_0\rho_0}},
 \qquad
  t_A=\frac{L_0}{V_A},
 \qquad
-x=\frac{x_d}{L_0},
-\quad t=\frac{t_d}{t_A}.
-\]
-\[
 \eta=\frac{\eta_m}{L_0V_A},
 \qquad
-\nu=\frac{\nu_d}{L_0V_A},
+\nu=\frac{\nu_d}{L_0V_A}.
+\]
+Dimensionless control numbers are
+\[
+S=\eta^{-1},\qquad \mathrm{Re}=\nu^{-1},\qquad \mathrm{Pm}=\frac{\nu}{\eta}.
+\]
+Periodic gauges and means:
+\[
+\avg{U}(t)=0,
 \qquad
-S=\eta^{-1},
-\quad \mathrm{Re}=\nu^{-1},
-\quad \mathrm{Pm}=\frac{\nu}{\eta}.
-\]
-\begin{itemize}
-  \item $S=t_\eta/t_A$ compares resistive diffusion to Alfv\'enic motion; large $S$ means slowly diffusing magnetic flux.
-  \item $\mathrm{Re}=t_\nu/t_A$ compares viscous diffusion to flow advection; large $\mathrm{Re}$ permits sharp velocity gradients.
-  \item $\mathrm{Pm}=\nu/\eta$ controls whether current sheets and vorticity sheets smooth on comparable scales.
-\end{itemize}
-\[
-\text{physical nondimensionalization }\ne\text{ neural standardization }(q-m_q)/s_q.
-\]
-\end{frame}
-
-\setmodule{Module 1}{6 of 6}
-\begin{frame}[t]{Module 1: boundary, gauge, and energy checks}
-\bodyfs
-Periodic faces and all PDE-required derivatives match:
-\[
-q(0,y,t)=q(2\pi,y,t),
-\quad
-q(x,0,t)=q(x,2\pi,t),
-\quad
-q\in\{\psi,U,J,\omega\}.
-\]
-The stream-function gauge and magnetic mean condition are
-\[
-\boxed{\average{U}(t)=0},
+\frac{\mathrm d}{\mathrm dt}\avg{\psi}=0,
 \qquad
-\boxed{\frac{\mathrm d}{\mathrm dt}\average{\psi}=0}.
+\avg J=\avg\omega=0.
 \]
-The continuous periodic energy law is
+The verification energy law is
 \[
-\boxed{
-\frac{\mathrm d}{\mathrm dt}\frac12\int_\Omega
-\left(|\nabla\psi|^2+|\nabla U|^2\right)\dd A
+\boxed{\frac{\mathrm d}{\mathrm dt}\frac12\int_\Omega(|\nabla\psi|^2+|\nabla U|^2)\dd A
 =-\eta\int_\Omega J^2\dd A-\nu\int_\Omega\omega^2\dd A\le0.}
 \]
-A valid solver or PINN should not create energy from the bracket terms.  Energy defects isolate sign errors, derivative errors, and broken periodicity.
+\end{frame}
+
+\setmodule{Module 1}{4 of 4}
+\begin{frame}[t]{Module 1: claim boundary under the operator change}
+\vspace{-0.15em}
+The physical model does \emph{not} change when the neural architecture changes. What changes is the learned map:
+\[
+\text{old coordinate surrogate:}\qquad (x,y,t,\eta,\nu,A_0)\mapsto(\psi,U),
+\]
+\[
+\text{new full-field operator:}\qquad
+\boxed{\stateop.}
+\]
+In Module 1 language, this means:
+\[
+(\psi_0,U_0)\text{ carries the initial topology and flow shape},
+\qquad
+(\eta,\nu)\text{ carry transport strength}.
+\]
+\[
+A_0\text{ may remain metadata, but in version 1 it is already encoded through }U_0.
+\]
+The scientific boundary remains strict: these notes support a synthetic two-field reduced-MHD surrogate workflow, not a validated surrogate of genuine M3D-C1 output.
 \end{frame}
 
 % --------------------------------------------------------------------------
-% Module 2: six slides
+% Module 2: four slides
 % --------------------------------------------------------------------------
 
-\setmodule{Module 2}{1 of 6}
-\begin{frame}[t]{Module 2: verified trajectory generation}
-\bodyfs
-For each parameter vector, Module 2 produces an accepted numerical realization
+\setmodule{Module 2}{1 of 4}
+\begin{frame}[t]{Module 2: solver output becomes operator data}
+\vspace{-0.15em}
+For each physical case
 \[
 \vect\mu=(\eta,\nu,A_0),
-\qquad
-\mathcal Q_{\vect\mu}^{N_x,N_y,\Delta t}
-=\{\psi,U,J,\omega\}_{n i j}.
 \]
-The advanced Fourier state is only
+the verified solver produces a full trajectory
 \[
-\widehat{\vect q}(t)=
-\begin{bmatrix}\widehat\psi(t)\\ \widehat\omega(t)\end{bmatrix},
+\mathcal Q_\mu=\{\psi(x,y,t),U(x,y,t),J(x,y,t),\omega(x,y,t): (x,y)\in\Omega,
+0\le t\le T\}.
+\]
+The integrated revision makes the downstream handoff explicit:
+\[
+\boxed{X_k=(\psi[0,:,:],U[0,:,:],\eta,\nu,t_k),
 \qquad
-\widehat U=-\frac{\widehat\omega}{k^2}\ (k\ne0),
+Y_k=(\psi[k,:,:],U[k,:,:]).}
+\]
+These are raw numerical scalar arrays. Contours, field-line plots, PNGs, screenshots, and rendered images are excluded from the learning-data path.
+\end{frame}
+
+\setmodule{Module 2}{2 of 4}
+\begin{frame}[t]{Module 2: island coalescence initial condition}
+\vspace{-0.15em}
+The benchmark starts from
+\[
+\psi_0(x,y)=\Psi_{\rm eq}\sin x\sin y,
+\qquad
+\Psi_{\rm eq}=1,
+\]
+\[
+\boxed{U_0(x,y)=A_0(\cos x-\cos y).}
+\]
+Derived initial fields are
+\[
+J_0=-\nabla^2\psi_0=2\psi_0,
+\qquad
+\omega_0=\nabla^2U_0=-U_0,
+\]
+\[
+\vect B_{\perp,0}=(\sin x\cos y,-\cos x\sin y),
+\qquad
+\vect v_{\perp,0}=(-A_0\sin y,-A_0\sin x).
+\]
+Important limitation for operator learning:
+\[
+U_0^{(A_0)}(x,y)=A_0 f(x,y)
+\quad\Rightarrow\quad
+\text{one fixed initial-flow shape with varying amplitude.}
+\]
+\end{frame}
+
+\setmodule{Module 2}{3 of 4}
+\begin{frame}[t]{Module 2: pseudo-spectral reference calculation}
+\vspace{-0.15em}
+The solver advances the Fourier state
+\[
+\widehat{\vect q}(t)=\begin{bmatrix}\widehat\psi(t)\\ \widehat\omega(t)\end{bmatrix},
+\qquad
+\widehat U=-\frac{\widehat\omega}{k^2}\;(k\ne0),
 \qquad
 \widehat J=k^2\widehat\psi.
 \]
-\begin{itemize}
-  \item Zero modes enforce $\widehat U_{00}=\widehat\omega_{00}=0$ and preserve the gauge/compatibility conditions.
-  \item $(U,J)$ are reconstructed inside every RK stage, not merely after the step.
-  \item A run becomes training data only after operator tests, trajectory checks, convergence evidence, and acceptance flags.
-\end{itemize}
-\end{frame}
-
-\setmodule{Module 2}{2 of 6}
-\begin{frame}[t]{Module 2: island-coalescence benchmark}
-\bodyfs
-The baseline periodic initial condition is
-\[
-\boxed{\psi_0=\sin x\sin y},
-\qquad
-\boxed{U_0=A_0(\cos x-\cos y)},
-\qquad
-J_0=2\psi_0,
-\qquad
-\omega_0=-U_0.
-\]
-\[\vect v_{\perp,0}=(-A_0\sin y,-A_0\sin x).\]
-The flow drives like-signed current islands toward the central X-point.
-\[
-\begin{aligned}
-\text{approach}&\rightarrow\text{compression}\rightarrow\text{current sheet}\\
-&\rightarrow\text{resistive reconnection}\rightarrow\text{merged topology}.
-\end{aligned}
-\]
-\begin{itemize}
-  \item Baseline: $\eta=\nu=10^{-3}$, $A_0=0.1$, $N_x=N_y=128$, $\Delta t=10^{-3}$, $T\approx8$.
-  \item The case exercises all terms: bracket transport, magnetic forcing, resistive diffusion, and viscous diffusion.
-  \item The horizon must cover the first resolved peak and a post-peak interval, not just early smooth motion.
-\end{itemize}
-\end{frame}
-
-\setmodule{Module 2}{3 of 6}
-\begin{frame}[t]{Module 2: periodic Fourier operators}
-\bodyfs
-Use the half-open grid
-\[
-x_j=2\pi j/N_x,
-\qquad
-y_\ell=2\pi \ell/N_y,
-\qquad
-j=0,\ldots,N_x-1,
-\quad \ell=0,\ldots,N_y-1.
-\]
-No endpoint is duplicated, so periodic differentiation is algebraic:
+Spectral derivatives are algebraic:
 \[
 \widehat{f_x}=ik_x\widehat f,
-\qquad
+\quad
 \widehat{f_y}=ik_y\widehat f,
-\qquad
+\quad
 \widehat{\nabla^2 f}=-k^2\widehat f.
 \]
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.49\textwidth}
-\textbf{Linear pieces}
+Nonlinear brackets are dealiased physical-grid products:
 \[
-\widehat U=-\widehat\omega/k^2,
-\qquad
-\widehat J=k^2\widehat\psi.
-\]
-They are exact for resolved modes.
-\end{column}
-\begin{column}{0.49\textwidth}
-\textbf{Nonlinear pieces}
-\[
-\bracket{f}{g}=f_xg_y-f_yg_x.
-\]
-Derivatives are spectral; products are evaluated on the grid.
-\end{column}
-\end{columns}
-This Fourier--grid--Fourier loop defines the pseudo-spectral method.
-\end{frame}
-
-\setmodule{Module 2}{4 of 6}
-\begin{frame}[t]{Module 2: dealiasing and time integration}
-\bodyfs
-Quadratic products can alias unresolved high modes into false low modes.  The frozen nonlinear operator is
-\[
-\boxed{\widehat{\mathcal B(f,g)}=\mathcal P_{2/3}\mathcal F(f_xg_y-f_yg_x)},
+\widehat{\mathcal B(f,g)}=\mathcal P_{2/3}\mathcal F(f_xg_y-f_yg_x),
 \qquad
 |m|\le\lfloor N_x/3\rfloor,
 \quad
 |n|\le\lfloor N_y/3\rfloor.
 \]
-The semi-discrete dynamics are advanced by classical RK4:
-\[
-\vect q^{n+1}=\vect q^n+\frac{\Delta t}{6}
-(\vect k_1+2\vect k_2+2\vect k_3+\vect k_4),
-\qquad
-\vect k_i=\mathcal L(\text{stage state}).
-\]
-At each stage:
-\[
-(\psi,\omega)\rightarrow(U,J)\rightarrow\text{spectral derivatives}\rightarrow\text{grid products}\rightarrow
-\mathcal P_{2/3}\rightarrow\text{zero-mode enforcement}.
-\]
-Stability monitors are useful, but they do not replace explicit temporal refinement.
+Classical RK4 advances the stage-consistent state; $(U,J)$ are reconstructed at every stage, not reused from stale fields.
 \end{frame}
 
-\setmodule{Module 2}{5 of 6}
-\begin{frame}[t]{Module 2: diagnostics for signs, topology, and resolution}
-\bodyfs
-Energy balance is monitored through the integrated defect
-\[
-\boxed{
-\delta_E(t)=
-\frac{\left|E(t)-E(0)+\int_0^t
-\left[\eta\int J^2\dd A+\nu\int\omega^2\dd A\right]\dd s\right|}
-{\max(E(0),\epsilon_{\rm mach})}.}
-\]
-Topology is summarized by O/X-point flux difference:
-\[
-\Delta\psi_{OX}=\psi_X-\psi_O,
-\qquad
-\Phi_{\rm rec}(t)=\Delta\psi_{OX}(0)-\Delta\psi_{OX}(t),
-\qquad
-\mathcal R_{\rm rec}=\frac{\dd\Phi_{\rm rec}}{\dd t}.
-\]
-Additional acceptance quantities include
-\[
-\|J\|_\infty,
-\quad
-\text{sheet width in grid cells},
-\quad
-\sum_{\text{tail}}|\widehat q_k|^2,
-\quad
-\average{U},\average{\psi},
-\quad
-\|J+\nabla^2\psi\|,
-\quad
-\|\omega-\nabla^2U\|.
-\]
-A visually plausible contour plot is not enough.
-\end{frame}
-
-\setmodule{Module 2}{6 of 6}
-\begin{frame}[t]{Module 2: acceptance before data release}
-\bodyfs
-Verification proceeds from operators to full trajectories:
+\setmodule{Module 2}{4 of 4}
+\begin{frame}[t]{Module 2: acceptance before pair extraction}
+\vspace{-0.15em}
+A trajectory is accepted only after verification and numerical adequacy:
 \[
 \begin{aligned}
-\text{operators}&\rightarrow\text{analytic fields}\rightarrow\text{bracket identities}\rightarrow\text{exact decay}\\
-&\rightarrow\text{manufactured solution}\rightarrow\text{energy balance}\rightarrow\text{refinement}\\
-&\rightarrow\text{Python/MATLAB parity}\rightarrow\text{case acceptance}.
+\text{operators}&\rightarrow\text{analytic fields}\rightarrow\text{brackets}\rightarrow\text{exact decay}\\
+&\rightarrow\text{manufactured solution}\rightarrow\text{refinement and parity}.
 \end{aligned}
 \]
-\begin{itemize}
-  \item Temporal refinement should show fourth-order behavior until spatial error dominates.
-  \item Spatial refinement should stabilize peak time, reconnection history, sheet width, spectra, and derived fields.
-  \item Accepted files store fields, coordinates, parameters, diagnostics, config, revision, host metadata, and flags.
-  \item Failed or marginal runs can be retained as diagnostics, but not silently mixed into the canonical training release.
-\end{itemize}
-\textbf{Data quality rule:} unverified simulation output is not a reference solution.
+Physics diagnostics include
+\[
+E=\frac12\int_\Omega(|\nabla\psi|^2+|\nabla U|^2)\dd A,
+\quad
+D_\eta=\eta\int_\Omega J^2\dd A,
+\quad
+D_\nu=\nu\int_\Omega\omega^2\dd A,
+\]
+\[
+J_{\max},\quad \text{sheet width},\quad \text{spectral tails},\quad
+\Delta\psi_{OX}=\psi_X-\psi_O,
+\quad
+\Phi_{\rm rec}=\Delta\psi_{OX}(0)-\Delta\psi_{OX}(t).
+\]
+One trajectory may yield many target-time operator pairs, but it is still one physical case. Splits must occur before extracting $X_k\mapsto Y_k$ pairs.
 \end{frame}
 
 % --------------------------------------------------------------------------
-% Module 3: five slides
+% Module 3: four slides
 % --------------------------------------------------------------------------
 
-\setmodule{Module 3}{1 of 5}
-\begin{frame}[t]{Module 3: physical case versus numerical realization}
-\bodyfs
-Module 3 preserves identity so later model comparisons are auditable.
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.49\textwidth}
-\textbf{Physical case}
+\setmodule{Module 3}{1 of 4}
+\begin{frame}[t]{Module 3: full-field operator example}
+\vspace{-0.15em}
+Module 3 defines the learning object without modifying canonical solver truth:
 \[
-\code{physical\_case\_id}
+\boxed{
+\mathcal X_{c,k}=\bigl(\psi_{c,0},U_{c,0},\eta_c,\nu_c,t_k\bigr),
+\qquad
+\mathcal Y_{c,k}=\bigl(\psi_{c,k},U_{c,k}\bigr).}
 \]
-Equations, domain, initial/boundary conditions, physical parameters, and intended horizon.
-\end{column}
-\begin{column}{0.49\textwidth}
-\textbf{Numerical realization}
+Tensor meanings are explicit:
 \[
-\code{case\_id}
+\psi_{c,k},U_{c,k}\in\mathbb R^{N_x\times N_y},
+\qquad
+q[n,i,j]=q(t_n,x_i,y_j).
 \]
-Solver, grid, time step, precision, language, configuration, code revision, and verification outcome.
-\end{column}
-\end{columns}
+Identifiers must remain separate:
 \[
-\text{release}\supset\text{physical cases}\supset\text{realizations}\supset\text{snapshots}\supset\text{grid points}.
+\code{physical\_case\_id}\ne\code{case\_id}\ne\code{initial\_state\_id}\ne\code{operator\_example\_id}.
 \]
-\begin{itemize}
-  \item Refined, restart, parity, or migrated realizations remain linked to the same physical case.
-  \item Splitting by snapshots or grid points would leak a trajectory into both training and testing.
-  \item The contract protects the distinction between ``M3D-C1-shaped'' and ``M3D-C1-derived.''
-\end{itemize}
+Different times from one trajectory are correlated examples, not independent cases.
 \end{frame}
 
-\setmodule{Module 3}{2 of 5}
-\begin{frame}[t]{Module 3: canonical HDF5 schema}
-\bodyfs
-Every accepted case declares
+\setmodule{Module 3}{2 of 4}
+\begin{frame}[t]{Module 3: HDF5 contract and tensor packing}
+\vspace{-0.15em}
+Canonical case files store fields before learning views:
 \[
-\code{schema\_name=pinn\_m3dc1.case},
-\qquad
-\code{schema\_version=1.0.0},
-\qquad
-\code{axis\_order=t,x,y}.
+\code{fields/psi},\code{fields/U},\code{fields/J},\code{fields/omega}
+\in\mathbb R^{N_t\times N_x\times N_y}.
 \]
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.47\textwidth}
-\textbf{Arrays}
+The operator tensor view may pack channels as
 \[
-\begin{array}{ll}
-\code{coordinates/} & \{t,x,y\}\\
-\code{fields/} & \{\psi,U,J,\omega\}\\
-\code{parameters/} & \{\eta,\nu,A_0\}\\
-\code{diagnostics/} & E,\delta_E,\Phi_{\rm rec},\ldots
-\end{array}
-\]
-\end{column}
-\begin{column}{0.51\textwidth}
-\textbf{Metadata}
-\[
-\begin{array}{ll}
-\code{physics/} & \text{equations, units, gauges}\\
-\code{numerics/} & \text{grid, }\Delta t,\text{ solver}\\
-\code{verification/} & \text{tests and flags}\\
-\code{provenance/} & \text{code, config, host}
-\end{array}
-\]
-\end{column}
-\end{columns}
-\[
-q[n,i,j]=q(t_n,x_i,y_j),
+\mathcal X_{c,k}\in\mathbb R^{C_{\rm in}\times N_x\times N_y},
 \qquad
-q\in\{\psi,U,J,\omega\},
-\qquad
-\text{reference arrays are finite float64 values.}
+C_{\rm in}=5:
+\quad
+[\psi_0,U_0,\eta\mathbf 1,\nu\mathbf 1,t_k\mathbf 1],
 \]
-A non-square, non-symmetric sentinel detects silent Python--MATLAB axis transposes.
+\[
+\mathcal Y_{c,k}\in\mathbb R^{2\times N_x\times N_y}:
+\quad
+[\psi_k,U_k].
+\]
+Broadcast scalar channels are constant fields. No image resizing, color mapping, rasterization, or aspect-ratio distortion is permitted.
 \end{frame}
 
-\setmodule{Module 3}{3 of 5}
-\begin{frame}[t]{Module 3: whole-case splits and leakage control}
-\bodyfs
-Generalization is measured on disjoint physical-case sets:
+\setmodule{Module 3}{3 of 4}
+\begin{frame}[t]{Module 3: splitting, scaling, and leakage}
+\vspace{-0.15em}
+Splits are made on complete physical trajectories:
 \[
 \mathcal P_{\rm all}=\mathcal P_{\rm tr}\cup\mathcal P_{\rm va}\cup\mathcal P_{\rm ti}\cup\mathcal P_{\rm te},
 \qquad
-\mathcal P_a\cap\mathcal P_b=\varnothing\quad(a\ne b).
+\mathcal P_a\cap\mathcal P_b=\varnothing.
 \]
-\begin{itemize}
-  \item Training cases update weights and fit preprocessing; validation selects checkpoints and hyperparameters.
-  \item Interpolation tests lie inside the training convex hull; extrapolation tests lie outside it.
-  \item All realizations sharing one \code{physical\_case\_id} stay in one partition.
-  \item The split manifest is frozen before model development and contains random seed, date, rule, and case lists.
-\end{itemize}
+Only after this step are target times selected:
 \[
-\widehat{\vect\alpha}=\operatorname{FitTransform}(\mathcal D_{\rm tr}),
-\qquad
-\text{then apply }\widehat{\vect\alpha}\text{ to validation/test data without refitting.}
+(c\in\mathcal P_s)\Rightarrow (c,k)\in\mathcal E_s
+\quad\text{for all allowed }k.
 \]
-Refitting normalization or PCA-like transforms on held-out trajectories leaks field information.
+Training-only transforms are fitted once:
+\[
+(m_\psi,s_\psi,m_U,s_U,m_\eta,s_\eta,m_\nu,s_\nu)=\operatorname{fit}(\mathcal P_{\rm tr}).
+\]
+For case-balanced sampling,
+\[
+\Pr(c)=\frac{1}{|\mathcal P_{\rm tr}|},
+\qquad
+\Pr(k\mid c)=\text{declared target-time rule}.
+\]
+Random pair splits would leak nearly identical time-adjacent physics into test sets.
 \end{frame}
 
-\setmodule{Module 3}{4 of 5}
-\begin{frame}[t]{Module 3: learning views leave truth immutable}
-\bodyfs
-The canonical release stores physical arrays; learning views are reproducible derived products.  For
+\setmodule{Module 3}{4 of 4}
+\begin{frame}[t]{Module 3: M3D-C1-shaped I/O without false equivalence}
+\vspace{-0.15em}
+The dataset is M3D-C1-shaped only at the interface level:
 \[
-(x,y,t,\eta,\nu,A_0)\mapsto(\psi,U),
+\text{coordinates}+	ext{fields}+	ext{parameters}+	ext{diagnostics}+	ext{metadata}+\text{splits}.
 \]
-periodic coordinates are encoded as
+It is not genuine M3D-C1 physics. An eventual adapter must declare
 \[
-\vect e_{\rm per}=(\sin\phi_x,\cos\phi_x,\sin\phi_y,\cos\phi_y),
-\qquad
-\phi_x=2\pi x/L_x,
-\quad
-\phi_y=2\pi y/L_y.
+\text{geometry},\quad \text{units},\quad \text{mesh},\quad \text{field names},\quad
+\text{signs},\quad \text{gauges},\quad \text{closures},\quad \text{projection losses}.
 \]
-Positive transport coefficients can be transformed by
+Module 3 release checks include
 \[
-r_\eta=\log_{10}\eta,
-\qquad
-r_\nu=\log_{10}\nu,
-\qquad
-\widetilde q=\frac{q-m_q}{s_q},
-\quad q=m_q+s_q\widetilde q.
+\begin{array}{lll}
+\text{axis parity}, & \text{round trip}, & J+\nabla^2\psi,\\
+\omega-\nabla^2U, & \avg U, & \text{split disjointness},\\
+\text{no-rendering provenance}. & &
+\end{array}
 \]
-PINN derivatives require recorded chain-rule factors:
-\[
-\partial_xq=\frac{s_q}{s_x}\partial_{\widetilde x}\widetilde q,
-\qquad
-\partial_x^2q=\frac{s_q}{s_x^2}\partial_{\widetilde x}^2\widetilde q,
-\qquad
-\partial_tq=\frac{s_q}{s_t}\partial_{\widetilde t}\widetilde q.
-\]
-\end{frame}
-
-\setmodule{Module 3}{5 of 5}
-\begin{frame}[t]{Module 3: protecting the M3D-C1 claim}
-\bodyfs
-Validation is layered:
-\[
-\text{structure}\rightarrow\text{relations}\rightarrow\text{numerics}\rightarrow\text{physics}\rightarrow\text{provenance}\rightarrow\text{release}.
-\]
-Readers check axes, finite values, gauges, derived-field identities, diagnostics, checksums, disjoint splits, parent links, and migration history.
-\[
-\boxed{
-\begin{aligned}
-\text{M3D-C1-shaped}={}&\text{metadata}+\text{mesh/coordinates}+\text{parameters}\\
-&+\text{fields}+\text{diagnostics}+\text{splits}+\text{provenance}.
-\end{aligned}}
-\]
-\begin{itemize}
-  \item Unknown major schema versions are rejected; migrations create traceable new files.
-  \item Genuine M3D-C1 exports remain source-native; adapters must document geometry, units, signs, gauges, projections, closures, and information loss.
-  \item The project can claim interface readiness before it can claim physical equivalence to M3D-C1.
-\end{itemize}
+The learning view is reversible bookkeeping; it must not overwrite accepted reference arrays.
 \end{frame}
 
 % --------------------------------------------------------------------------
@@ -629,236 +418,184 @@ Readers check axes, finite values, gauges, derived-field identities, diagnostics
 % --------------------------------------------------------------------------
 
 \setmodule{Module 4}{1 of 4}
-\begin{frame}[t]{Module 4: data-only field surrogate}
-\bodyfs
-The baseline neural surrogate approximates the parameterized field family
+\begin{frame}[t]{Module 4: data-only neural-operator baseline}
+\vspace{-0.15em}
+The baseline is no longer a coordinate MLP. It is a full-field neural operator:
 \[
-\boxed{
-\mathcal N_{\vect\theta}:
-(x,y,t,\eta,\nu,A_0)\longmapsto(\widehat\psi,\widehat U).}
+\boxed{\mathcal G_\theta:(\psi_0,U_0,\eta,\nu,t)\mapsto(\widehat\psi_t,\widehat U_t).}
 \]
-Complete cases, not individual points, define the split:
+Inputs and outputs are numerical arrays:
 \[
-\vect\mu_c=(\eta_c,\nu_c,A_{0,c}),
-\qquad
-\mathcal D_c=\{(x_i,y_j,t_n,\vect\mu_c;\psi,U)\}_{n i j}.
+\psi_0,U_0,\widehat\psi_t,\widehat U_t\in\mathbb R^{N_x\times N_y}.
 \]
-\begin{itemize}
-  \item The model sees labels only through sampled field values of $(\psi,U)$.
-  \item No PDE residual, derivative target, energy law, current/vorticity label, or boundary penalty appears in training.
-  \item Time interpolation within $[0,T]$ is not forecasting beyond the simulated horizon.
-  \item This baseline is the controlled comparator for asking whether physics information helps.
-\end{itemize}
+A strict data-only baseline answers:
+\[
+\text{How well can observed trajectory pairs alone train a field-to-field surrogate?}
+\]
+No PDE residual, initial-condition penalty, boundary loss, energy balance, target $J$, target $\omega$, derivative loss, or spectral loss updates the weights.
 \end{frame}
 
 \setmodule{Module 4}{2 of 4}
-\begin{frame}[t]{Module 4: input representation and architecture}
-\bodyfs
-Periodic coordinates respect the domain before the network sees them:
+\begin{frame}[t]{Module 4: Fourier neural operator structure}
+\vspace{-0.15em}
+A version-1 input tensor can be
 \[
-\phi_x=\frac{2\pi x}{L_x},
-\qquad
-\phi_y=\frac{2\pi y}{L_y},
+\mathcal X=[\psi_0,U_0,\eta\mathbf 1,\nu\mathbf 1,t\mathbf 1]
+\in\mathbb R^{5\times N_x\times N_y}.
 \]
+FNO layers alternate local channel mixing and truncated spectral convolution:
 \[
-\vect z=(\sin\phi_x,\cos\phi_x,\sin\phi_y,\cos\phi_y,
-\widetilde t,\widetilde r_\eta,\widetilde r_\nu,\widetilde A_0).
+\vect h^{(\ell+1)}(x,y)
+=\sigma\!\bigl(W^{(\ell)}\vect h^{(\ell)}(x,y)
++\mathcal F^{-1}[\,R^{(\ell)}(k)\,\mathcal F\vect h^{(\ell)}(k)\,](x,y)\bigr).
 \]
-\begin{itemize}
-  \item Smooth functions of $(\sin\phi,\cos\phi)$ are periodic in value and derivatives.
-  \item $r_\eta=\log_{10}\eta$ and $r_\nu=\log_{10}\nu$ make decade-scale transport coefficients easier to learn.
-  \item Scaling statistics are fit only on training cases.
-  \item Baseline architecture: six fully connected $\tanh$ layers of width $128$ plus a linear two-output head.
-\end{itemize}
-Module 5 retains the same architecture family and representation so the comparison isolates the training objective.
+The baseline architecture is a scientific comparator, not the final claim:
+\[
+\text{lift}\rightarrow 4\text{ FNO blocks}\rightarrow \text{projection to }(\psi,U),
+\]
+with width, retained modes, activation, and depth selected only by validation cases.
 \end{frame}
 
 \setmodule{Module 4}{3 of 4}
-\begin{frame}[t]{Module 4: labeled loss only}
-\bodyfs
-With standardized errors
+\begin{frame}[t]{Module 4: strict supervised full-field loss}
+\vspace{-0.15em}
+For one operator pair $(c,k)$, standardized output errors are fields:
 \[
-e_{\psi,n}=\widehat{\widetilde\psi}_n-\widetilde\psi_n,
+E_{\psi,c,k}=\widehat{\widetilde\psi}_{c,k}-\widetilde\psi_{c,k},
 \qquad
-e_{U,n}=\widehat{\widetilde U}_n-\widetilde U_n,
+E_{U,c,k}=\widehat{\widetilde U}_{c,k}-\widetilde U_{c,k}.
 \]
-the case-balanced objective is
+The case-balanced data-only loss is
 \[
 \boxed{
-\mathcal L_{\rm train}=\mathcal L_{\rm data}
-=\frac{1}{|\mathcal C_{\mathcal B}|}
-\sum_{c\in\mathcal C_{\mathcal B}}
+\mathcal L_{\rm data}=\frac1{|\mathcal C_B|}\sum_{c\in\mathcal C_B}
+\frac1{|\mathcal K_c|}\sum_{k\in\mathcal K_c}
 \left[
-\frac{1}{N_c}\sum_{n\in c}e_{\psi,n}^2
-+\frac{1}{N_c}\sum_{n\in c}e_{U,n}^2
+\frac{\|E_{\psi,c,k}\|_2^2}{N_xN_y}
++\frac{\|E_{U,c,k}\|_2^2}{N_xN_y}
 \right].}
 \]
-\begin{itemize}
-  \item Case balancing prevents long trajectories or dense grids from dominating the objective.
-  \item Adam, mini-batches, early stopping, and regularization are numerical choices, not physics information.
-  \item Any good behavior in $J$, $\omega$, residuals, or energy must emerge indirectly from fitting $(\psi,U)$.
-\end{itemize}
+Training-time counts must distinguish
+\[
+\#\text{trajectories}\ne\#\text{operator pairs}\ne\#\text{pixels/grid points}.
+\]
+Large numbers of target times do not create new independent physical cases.
 \end{frame}
 
 \setmodule{Module 4}{4 of 4}
-\begin{frame}[t]{Module 4: evaluation makes the PINN testable}
-\bodyfs
-On complete unseen cases, report field and derivative-field errors:
+\begin{frame}[t]{Module 4: evaluation and limitation}
+\vspace{-0.15em}
+Full-field metrics use inverse-transformed predictions:
 \[
-\varepsilon_{L_2}^{(a)}=\frac{\|\widehat a-a\|_2}{\|a\|_2+\epsilon},
-\qquad
- a\in\{\psi,U,J,\omega\},
-\qquad
+\epsilon^{(q)}_{L_2}(c,k)=\frac{\|\widehat q_{c,k}-q_{c,k}\|_2}{\|q_{c,k}\|_2+\epsilon},
+\qquad q\in\{\psi,U,J,\omega\}.
+\]
+Derived diagnostics are computed after prediction:
+\[
 \widehat J=-\nabla^2\widehat\psi,
-\quad
-\widehat\omega=\nabla^2\widehat U.
+\qquad
+\widehat\omega=\nabla^2\widehat U,
+\qquad
+E_B,E_K,J_{\max},\Phi_{\rm rec},\text{ spectra, O/X points}.
 \]
-Diagnostics are evaluation-only for Module 4:
+Evaluation-only residuals may be reported, but not trained:
 \[
-\Rpsi,
-\quad
-\Romega,
-\quad
-E(t),
-\quad
-\delta_E(t),
-\quad
-\Phi_{\rm rec}(t),
-\quad
-\text{periodicity defects},
-\quad
-\average{\widehat U}.
+\Rpsi,\quad \Romega\quad\text{are diagnostics in Module 4.}
 \]
-\textcolor{WarningRed}{\textbf{Controlled comparison rule:}} Modules 4 and 5 share splits, labels, preprocessing, periodic encoding, architecture family, data loss, metrics, seeds, and reporting windows.
-\[
-\text{Physics helps only if a declared held-out metric improves, with extra compute disclosed.}
-\]
+Limitation: because $U_0=A_0(\cos x-\cos y)$, the current dataset tests operator learning over transport coefficients, time, and amplitude, not arbitrary initial-state shape generalization.
 \end{frame}
 
 % --------------------------------------------------------------------------
-% Module 5: five slides
+% Module 5: four slides
 % --------------------------------------------------------------------------
 
-\setmodule{Module 5}{1 of 5}
-\begin{frame}[t]{Module 5: PDE residuals enter training}
-\bodyfs
-The network still predicts only $(\widehat\psi,\widehat U)$, but automatic differentiation constructs
+\setmodule{Module 5}{1 of 4}
+\begin{frame}[t]{Module 5: physics-informed neural operator}
+\vspace{-0.15em}
+Module 5 keeps the same full-field FNO map as Module 4:
+\[
+\mathcal G_\theta:(\psi_0,U_0,\eta,\nu,t)\mapsto(\widehat\psi_t,\widehat U_t).
+\]
+The model becomes physics-informed when reduced-MHD residuals affect training. The derivative strategy is
+\[
+\boxed{\text{AD in scalar time }t\quad+\quad\text{Fourier spectral differentiation in }(x,y).}
+\]
+Predicted derived fields are
 \[
 \widehat J=-\nabla^2\widehat\psi,
 \qquad
 \widehat\omega=\nabla^2\widehat U.
 \]
-The local reduced-MHD defects are
-\[
-\boxed{\Rpsi=\widehat\psi_t+\bracket{\widehat U}{\widehat\psi}-\eta\nabla^2\widehat\psi},
-\]
-\[
-\boxed{\Romega=\widehat\omega_t+\bracket{\widehat U}{\widehat\omega}-\bracket{\widehat J}{\widehat\psi}-\nu\nabla^2\widehat\omega}.
-\]
-\begin{itemize}
-  \item Labeled points constrain agreement with accepted trajectories.
-  \item Collocation points constrain the equation even where no solver label is used.
-  \item The residuals must be computed in physical coordinates after undoing scaling through the chain rule.
-\end{itemize}
+This is a physics-informed neural operator/PINO formulation, not the old coordinate-MLP PINN.
 \end{frame}
 
-\setmodule{Module 5}{2 of 5}
-\begin{frame}[t]{Module 5: total objective and constraint roles}
-\bodyfs
+\setmodule{Module 5}{2 of 4}
+\begin{frame}[t]{Module 5: full-field residual equations}
+\vspace{-0.15em}
+For each physics context $(\psi_0,U_0,\eta,\nu,t)$, form complete residual fields:
 \[
-\boxed{
-\mathcal L_{\rm total}=w_{\rm data}\mathcal L_{\rm data}
-+w_{\rm PDE}\mathcal L_{\rm PDE}
-+w_{\rm IC}\mathcal L_{\rm IC}
-+w_{\rm BC}\mathcal L_{\rm BC}
-+w_{\rm global}\mathcal L_{\rm global}.}
-\]
-\begin{columns}[T,onlytextwidth]
-\begin{column}{0.48\textwidth}
-\textbf{Local terms}
-\[
-\mathcal L_{\rm PDE}=\average{\Rpsi^2/\sigma_\psi^2+\Romega^2/\sigma_\omega^2}_{\rm colloc}
+\boxed{\Rpsi=\widehat\psi_t+\bracket{\widehat U}{\widehat\psi}-\eta\nabla^2\widehat\psi,}
 \]
 \[
-\mathcal L_{\rm data}=\text{same labeled loss as Module 4.}
+\boxed{\Romega=\widehat\omega_t+\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}-\nu\nabla^2\widehat\omega.}
 \]
-\end{column}
-\begin{column}{0.50\textwidth}
-\textbf{Condition terms}
-\begin{itemize}
-  \item $\mathcal L_{\rm IC}$ selects the intended trajectory at $t=0$.
-  \item $\mathcal L_{\rm BC}=0$ for hard periodic inputs; otherwise it measures face mismatch.
-  \item $\mathcal L_{\rm global}$ contains gauge, mean-flux, and optional balance constraints.
-\end{itemize}
-\end{column}
-\end{columns}
-Weights are hyperparameters; they must be reported with normalization choices and collocation counts.
-\end{frame}
-
-\setmodule{Module 5}{3 of 5}
-\begin{frame}[t]{Module 5: derivative order and gauge issues}
-\bodyfs
-Because $\widehat\omega=\nabla^2\widehat U$,
+Spatial operations use the same periodic spectral conventions as the Module 2 solver:
 \[
-\widehat\omega_t\sim\partial_t\partial_x^2\widehat U,
+\bracket{f}{g}=f_xg_y-f_yg_x,
 \qquad
-\bracket{\widehat U}{\widehat\omega}\sim\partial_x^3\widehat U,
-\qquad
-\nabla^2\widehat\omega=\nabla^4\widehat U.
+\widehat{\mathcal B(f,g)}=\mathcal P_{2/3}\mathcal F(f_xg_y-f_yg_x).
 \]
-The Lorentz bracket includes third derivatives of $\widehat\psi$ through $\widehat J=-\nabla^2\widehat\psi$.
-\begin{itemize}
-  \item Smooth activations such as $\tanh$ are required; ReLU-like nonsmoothness is incompatible with fourth derivatives.
-  \item Scaling factors must remain in the differentiable graph; otherwise residual units and magnitudes are wrong.
-  \item Automatic-differentiation derivatives should be tested against analytic periodic functions before training.
-\end{itemize}
-The PDE does not identify a spatially constant offset in $U$:
-\[
-\boxed{\average{\widehat U}(t,\vect\mu)=0.}
-\]
+The vorticity residual still contains $\nabla^4\widehat U$ mathematically, but it is computed by spectral multiplication rather than four nested coordinate-AD passes.
 \end{frame}
 
-\setmodule{Module 5}{4 of 5}
-\begin{frame}[t]{Module 5: global balances and curricula}
-\bodyfs
-A useful optional balance penalty is based on the exact energy law:
+\setmodule{Module 5}{3 of 4}
+\begin{frame}[t]{Module 5: objective and constraints}
+\vspace{-0.15em}
+The primary loss is
 \[
-\boxed{
-\frac{\mathrm d}{\mathrm dt}\frac12\int_\Omega
-\left(|\nabla\widehat\psi|^2+|\nabla\widehat U|^2\right)\dd A
-+\eta\int_\Omega\widehat J^2\dd A
-+\nu\int_\Omega\widehat\omega^2\dd A=0.}
+\boxed{\mathcal L_{\rm total}=w_d\mathcal L_{\rm data}
++w_f\mathcal L_{\rm PDE}+w_0\mathcal L_{\rm IC}+w_g\mathcal L_{\rm gauge},
+\qquad \mathcal L_{\rm BC}=0.}
 \]
-Collocation defines what ``PDE accuracy'' means:
-\[\mathcal X_{\rm colloc}=\{(x,y,t,\eta,\nu,A_0)\}.\]
-Fixed validation collocation and adaptive training collocation are different objects.
-Practical curriculum:
+The PDE term is an equation-balanced field norm:
 \[
-\begin{aligned}
-\text{derivative tests}&\rightarrow\text{data warm start}\rightarrow\Rpsi\rightarrow\Romega\\
-&\rightarrow\text{longer windows}\rightarrow\text{multi-parameter cases}.
-\end{aligned}
+\mathcal L_{\rm PDE}=\lambda_\psi\frac{\|\Rpsi/S_\psi\|_2^2}{N_xN_y}
++\lambda_\omega\frac{\|\Romega/S_\omega\|_2^2}{N_xN_y}.
 \]
-Global penalties should follow quadrature verification; otherwise they can enforce a numerically wrong balance.
+The operator identity at the initial time may be imposed by
+\[
+\mathcal L_{\rm IC}=\|\widehat\psi_{t=0}-\psi_0\|^2+\|\widehat U_{t=0}-U_0\|^2.
+\]
+The stream-function gauge remains
+\[
+\mathcal L_{\rm gauge}\propto \avg{\widehat U}^{\;2}.
+\]
+Energy-balance losses are controlled ablations, not silently added to the base model.
 \end{frame}
 
-\setmodule{Module 5}{5 of 5}
-\begin{frame}[t]{Module 5: scientific interpretation of the PINN result}
-\bodyfs
-Compare matched models on unseen cases using
+\setmodule{Module 5}{4 of 4}
+\begin{frame}[t]{Module 5: controlled evidence that physics helped}
+\vspace{-0.15em}
+The comparison with Module 4 must hold fixed
 \[
-\begin{gathered}
-\varepsilon_{L_2}^{(\psi,U,J,\omega)},\quad \Rpsi,\Romega,\quad \delta_E,\\
-\Phi_{\rm rec},\mathcal R_{\rm rec},\quad \text{training and inference cost}.
-\end{gathered}
+\text{trajectories},\quad \text{target times},\quad \text{preprocessing},\quad
+\text{FNO capacity},\quad \mathcal L_{\rm data},\quad \text{test cases},\quad \text{metrics}.
 \]
-A PINN can help by improving labeled-data efficiency, derivative fidelity, parameter generalization, or physical admissibility.
-
-It can also fail through slow training, gradient conflict, oversmoothed sheets, residual imbalance, or wrong/incomplete physics.
-
-\textcolor{WarningRed}{\textbf{Conclusion standard:}} the PINN is not assumed to win.\par
-The result remains a surrogate of synthetic two-field reduced-MHD dynamics.\par
-Full-code surrogate claim: genuine M3D-C1 data plus a validated adapter.
+Physics helps only if it improves declared outcomes:
+\[
+\epsilon_{\psi,U},\quad \epsilon_{J,\omega},\quad \|\Rpsi\|,
+\quad \|\Romega\|,
+\quad E\text{ balance},\quad J_{\max},\quad \Phi_{\rm rec},\quad \text{event timing},\quad \text{data efficiency}.
+\]
+Failure modes remain plausible:
+\[
+\begin{array}{lll}
+\text{loss imbalance}, & \text{gradient conflict}, & \text{oversmoothing sheets},\\
+\text{aliasing mismatch}, & \text{test-case leakage}, & \text{false extrapolation confidence}.
+\end{array}
+\]
+Scientific boundary: the result is still a surrogate of verified synthetic two-field reduced-MHD data. M3D-C1 fidelity requires genuine M3D-C1 arrays and renewed validation.
 \end{frame}
 
 \end{document}

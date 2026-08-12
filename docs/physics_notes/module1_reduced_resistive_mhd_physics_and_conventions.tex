@@ -1962,4 +1962,190 @@ Cambridge University Press (2000).
 
 \end{thebibliography}
 
+
+
+% ============================================================================
+% APPENDED ADDENDUM (11 August 2026)
+% This material is intentionally appended rather than integrated into earlier
+% sections so previously printed/annotated pages remain usable.
+% ============================================================================
+\clearpage
+\section*{Addendum: full-field operator surrogate formulation}
+\addcontentsline{toc}{section}{Addendum: full-field operator surrogate formulation}
+
+\subsection*{A.1 Purpose and status of this addendum}
+
+The reduced-MHD physics developed in this module is unchanged.  The governing
+fields, sign conventions, normalization, periodic domain, Poisson bracket,
+current and vorticity definitions, and evolution equations remain the physical
+foundation of the project.  The update considered here changes the \emph{surrogate-learning
+map}: instead of treating each space--time coordinate as an independent neural
+input, the surrogate may consume an entire initial field and learn an operator
+that maps that field to a later field.
+
+The earlier coordinate-network formulation remains a valid baseline,
+\begin{equation}
+ (x,y,t,\eta,\nu,A_0)\longmapsto (\psi,U),
+ \tag{A.1}
+\end{equation}
+but the proposed full-field formulation is
+\begin{equation}
+ \boxed{
+ \bigl(\psi_0(x,y),U_0(x,y),\eta,\nu,t\bigr)
+ \longmapsto
+ \bigl(\psi(x,y,t),U(x,y,t)\bigr).}
+ \tag{A.2}
+\end{equation}
+Equation~(A.2) is a \emph{field-to-field operator-learning problem}.  The
+network input and output are numerical field arrays, not rendered contour
+plots, screenshots, or RGB images.  Preserving the raw arrays retains sign,
+normalization, spatial resolution, and derivative information required by the
+MHD equations.
+
+\subsection*{A.2 What happens to the perturbation amplitude $A_0$?}
+
+For the version-1 island-coalescence initial condition, Module~2 specifies
+\begin{equation}
+ U_0(x,y)=A_0(\cos x-\cos y).
+ \tag{A.3}
+\end{equation}
+In the coordinate-network formulation, $A_0$ must be supplied explicitly
+because the network receives only the scalar coordinates and case parameters.
+In the full-field formulation, the magnitude and spatial structure of the
+perturbation are already encoded in the input field $U_0(x,y)$.  Therefore
+$A_0$ need not be a separate neural input when $U_0$ itself is provided.
+
+This distinction is useful:
+\begin{center}
+\begin{tabular}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{Formulation} & \textbf{How the initial perturbation enters}\\
+\midrule
+Coordinate surrogate & Scalar $A_0$ identifies the amplitude of a prescribed perturbation shape.\\
+Full-field operator & The complete array $U_0(x,y)$ carries both perturbation amplitude and spatial shape.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The operator formulation therefore creates a path beyond a one-parameter
+family of perturbations.  Future datasets may contain different admissible
+initial fields $\psi_0$ and $U_0$, provided each case is generated and verified
+under a clearly versioned physical contract.  The network could then learn
+responses to changes in the \emph{shape} of the initial state, not merely to a
+change in the scalar amplitude $A_0$.
+
+\clearpage
+\subsection*{A.3 Physical interpretation of the operator map}
+
+A useful way to distinguish the two learning problems is
+\begin{align}
+\text{coordinate model:}\qquad
+ &(\text{where},\text{when},\text{which scalar case})
+ \longmapsto \text{field value at one point},
+ \tag{A.4}\\[0.5em]
+\text{operator model:}\qquad
+ &(\text{entire initial plasma state},\text{case coefficients},\text{time})
+ \longmapsto \text{entire later plasma state}.
+ \tag{A.5}
+\end{align}
+
+The latter is closer to the way a time-dependent simulation is naturally
+viewed: an initial state is supplied, the equations evolve that state, and a
+later field state is produced.  For the present two-field reduced model, the
+minimal operator input can be $(\psi_0,U_0)$ together with the transport
+coefficients $\eta$ and $\nu$ and a requested time $t$.  The output remains
+$(\psi,U)$; the derived fields are reconstructed from
+\begin{equation}
+ J=-\nabla_\perp^2\psi,
+ \qquad
+ \omega=\nabla_\perp^2U.
+ \tag{A.6}
+\end{equation}
+
+The physical equations that can later constrain a physics-informed operator
+are exactly the same reduced-MHD equations frozen earlier in this module:
+\begin{align}
+ R_\psi
+ &=\partial_t\psi+[U,\psi]-\eta\nabla_\perp^2\psi,
+ \tag{A.7}\\
+ R_\omega
+ &=\partial_t\omega+[U,\omega]-[J,\psi]
+   -\nu\nabla_\perp^2\omega.
+ \tag{A.8}
+\end{align}
+A data-only operator can first be trained against reference trajectories.  A
+physics-informed version can then penalize Eqs.~(A.7)--(A.8), together with
+periodicity, definitions, initial-state consistency, and other structural
+constraints.  Thus the architectural change does not alter the MHD model; it
+changes the mathematical object approximated by the neural network.
+
+\subsection*{A.4 Consequences for the downstream modules}
+
+If the full-field operator formulation is adopted, the downstream workflow
+changes as follows:
+\begin{center}
+\begin{tabular}{p{0.15\textwidth}p{0.74\textwidth}}
+\toprule
+\textbf{Module} & \textbf{Required change}\\
+\midrule
+1 & Small.  Preserve the reduced-MHD derivation and conventions; append the operator-learning objective.\\
+2 & Moderate.  Preserve the verified solver, but expose trajectories explicitly as initial-field-to-later-field training pairs and eventually permit versioned families of initial fields.\\
+3 & Large.  Redefine dataset samples, tensor shapes, batching, normalization, and whole-case splits around full field arrays rather than pointwise coordinate rows.\\
+4 & Large.  Replace the coordinate MLP baseline with a data-only neural operator baseline, for example a Fourier neural operator or another field-to-field architecture.\\
+5 & Large.  Apply reduced-MHD residuals and structural constraints to the operator predictions rather than to a coordinate MLP.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\clearpage
+\subsection*{A.5 Relationship to M3D-C1 and claim boundary}
+
+The operator formulation can make the \emph{data interface} look more like the
+natural output of a large simulation code because both are organized around
+spatial fields.  That similarity must not be confused with physical fidelity.
+Fields generated by the Module~2 periodic Cartesian two-field solver remain
+\emph{synthetic reduced-MHD data}.  They are not M3D-C1 calculations, even if
+the arrays are stored using names, shapes, metadata, or interfaces chosen to
+facilitate later transfer.
+
+Accordingly, the scientifically defensible progression is
+\begin{equation}
+\begin{aligned}
+\text{verified reduced-MHD trajectories}
+&\;\longrightarrow\;\text{data-only field operator}\\
+&\;\longrightarrow\;\text{physics-informed field operator}\\
+&\;\longrightarrow\;\text{possible later transfer to genuine higher-fidelity data}.
+\end{aligned}
+\tag{A.9}
+\end{equation}
+The first three stages demonstrate a surrogate methodology for nonlinear
+resistive reduced MHD.  A claim about M3D-C1 itself would require genuine
+M3D-C1 outputs and a separate validation/transfer study.
+
+\subsection*{A.6 Updated learning objective}
+
+The proposed operator-learning objective for the reduced proof of concept is:
+\begin{quote}
+Given a verified initial reduced-MHD field state $(\psi_0,U_0)$, transport
+coefficients $(\eta,\nu)$, and a requested time $t$, learn the nonlinear
+solution operator that predicts the corresponding full fields $(\psi,U)$,
+while retaining the option to enforce the reduced-MHD equations and structural
+constraints during training.
+\end{quote}
+
+This objective is broader than learning the response to the single scalar
+parameter $A_0$, because the input can eventually represent a family of
+spatially distinct initial conditions.  For the first implementation, however,
+the existing island-coalescence family remains an appropriate controlled
+benchmark: it allows the operator pipeline to be verified before increasing
+the diversity of initial fields.
+
+\subsection*{A.7 Addendum change note}
+
+This addendum was appended on 11 August 2026.  No earlier section or equation
+of Module~1 was deleted or rewritten.  The added material records a proposed
+transition from the pointwise coordinate surrogate to a full-field operator
+surrogate, explains how $A_0$ becomes encoded in $U_0$, states which reduced-MHD
+physics remains unchanged, and records the expected impact on Modules~2--5.
+
 \end{document}

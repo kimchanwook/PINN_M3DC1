@@ -73,7 +73,7 @@
 \vspace{0.7cm}
 {\Huge\bfseries\color{TitleBlue} Module 3}\par
 \vspace{0.25cm}
-{\LARGE\bfseries\color{TitleBlue} Dataset Contracts and\\M3D-C1-Shaped Input/Output}\par
+{\LARGE\bfseries\color{TitleBlue} Full-Field Dataset Contracts and\\M3D-C1-Shaped Input/Output}\par
 \vspace{0.9cm}
 {\large A textbook-style scientific data specification for auditable reduced-MHD surrogate learning}\par
 \vfill
@@ -81,12 +81,12 @@
 \centering
 \textbf{Module purpose}\par
 \vspace{0.35em}
-Store accepted fields, parameters, coordinates, provenance, whole-case splits, and normalization in explicit versioned schemas while preserving the physical meaning fixed by Modules 1 and 2.
+Store accepted numerical fields, parameters, coordinates, provenance, and whole-case splits in explicit versioned schemas, then construct lossless full-field operator views for Modules 4 and 5 without changing the physical meaning fixed by Modules 1 and 2.
 \end{tcolorbox}
 \vfill
-{\normalsize Version 1.0 \quad | \quad 5 August 2026}\par
+{\normalsize Version 1.1 \quad | \quad 11 August 2026}\par
 \vspace{0.25cm}
-{\small Physics and data-contract note for the synthetic reduced-MHD proof of concept}\par
+{\small Physics and full-field data-contract note for the synthetic reduced-MHD proof of concept}\par
 \end{titlepage}
 
 \hypersetup{pageanchor=true}
@@ -94,14 +94,20 @@ Store accepted fields, parameters, coordinates, provenance, whole-case splits, a
 
 \section*{Preface: why a data contract is part of the physics}
 
-Module~2 produces verified numerical trajectories. Module~3 determines whether those trajectories remain scientifically intelligible after they are written to disk, combined into a dataset, split for learning, transformed for optimization, read by another programming language, and eventually compared with genuine M3D-C1 exports.
+Module~2 produces verified numerical trajectories and freezes the revised downstream map
+\begin{equation*}
+\left(\psi_0(x,y),U_0(x,y),\eta,\nu,t\right)
+\longmapsto
+\left(\psi(x,y,t),U(x,y,t)\right).
+\end{equation*}
+Module~3 determines whether those trajectories remain scientifically intelligible after they are written to disk, combined into a dataset, split for learning, transformed for optimization, packed into full-field tensors, read by another programming language, and eventually compared with genuine M3D-C1 exports. The learning object is therefore no longer one coordinate row. It is a complete two-dimensional numerical-field input paired with a complete two-dimensional numerical-field target at a declared time.
 
 A file format alone cannot answer these questions. An array of numbers does not identify which axis is time, whether current means $J=-\Lap\psi$ or $J=+\Lap\psi$, whether the rightmost spatial endpoint is duplicated, whether a field is dimensional or nondimensional, whether a case passed convergence checks, or whether preprocessing used the test set. Those facts determine the scientific meaning of every number. The \textbf{data contract} is the set of rules that makes that meaning explicit and machine-checkable.
 
-The initials \textbf{I/O} mean \emph{input/output}: how information enters and leaves a computational component. \textbf{HDF5} means Hierarchical Data Format version~5, a format that organizes multidimensional datasets, groups, and attributes. \textbf{Schema} means a versioned specification of required names, types, shapes, meanings, and relationships. \textbf{Provenance} means the recorded history of how an artifact was produced. \textbf{Normalization} here can mean either physical nondimensionalization or a later numerical transform for neural-network training; these are different operations and must remain distinguishable.
+The initials \textbf{I/O} mean \emph{input/output}: how information enters and leaves a computational component. \textbf{HDF5} means Hierarchical Data Format version~5, a format that organizes multidimensional datasets, groups, and attributes. \textbf{Schema} means a versioned specification of required names, types, shapes, meanings, and relationships. \textbf{Provenance} means the recorded history of how an artifact was produced. A \textbf{full-field operator example} contains complete numerical arrays rather than isolated scalar samples. \textbf{Normalization} here can mean either physical nondimensionalization or a later numerical transform for neural-network training; these are different operations and must remain distinguishable.
 
 \begin{warningbox}
-``M3D-C1-shaped'' describes the architecture of the workflow: coordinates, parameters, time-dependent fields, metadata, diagnostics, and an adapter boundary. It does not mean that the synthetic Cartesian variables are numerically equivalent to M3D-C1 variables, that the geometries agree, or that the dataset validates an M3D-C1 surrogate.
+``M3D-C1-shaped'' describes the architecture of the workflow: coordinates or mesh information, parameters, time-dependent numerical fields, metadata, diagnostics, and an adapter boundary. The revised full-field tensors make this interface more field-oriented, but they do not make the synthetic Cartesian variables numerically equivalent to M3D-C1 variables, make the geometries agree, or validate an M3D-C1 surrogate.
 \end{warningbox}
 
 \subsection*{The main dependency chain}
@@ -115,7 +121,7 @@ The initials \textbf{I/O} mean \emph{input/output}: how information enters and l
 \node[box] (solver) {Accepted Module 2\\solver realization};
 \node[box, right=of solver] (case) {Immutable canonical\\HDF5 case};
 \node[box, right=of case] (manifest) {Versioned dataset\\manifest and splits};
-\node[box, below=of case] (processed) {Derived learning view\\and train-only scales};
+\node[box, below=of case] (processed) {Full-field operator view\\and train-only scales};
 \draw[arrow] (solver) -- (case);
 \draw[arrow] (case) -- (manifest);
 \draw[arrow] (manifest) -- (processed);
@@ -129,21 +135,24 @@ The reference case is never overwritten by a preprocessing step. A learning-read
 
 After working through this module, the reader should be able to:
 \begin{enumerate}[label=\arabic*.]
-  \item explain why array names and shapes are physical statements rather than clerical details;
-  \item distinguish a physical case, a numerical realization, a snapshot, a grid point, and a supervised example;
+  \item explain why array names, axes, and grid registration are physical statements rather than clerical details;
+  \item distinguish a physical case, numerical realization, snapshot, grid point, and full-field operator example;
   \item state the exact canonical shapes and meanings of $\psi$, $U$, $J$, and $\omega$;
-  \item explain why the stored reference fields remain unstandardized and immutable;
+  \item explain why accepted reference fields remain unstandardized, unrendered, and immutable;
   \item design an HDF5 hierarchy that preserves coordinates, fields, parameters, diagnostics, verification, and provenance;
-  \item distinguish required datasets from metadata attributes;
-  \item assign stable identifiers without encoding ambiguous floating-point strings in filenames;
-  \item construct whole-case training, validation, interpolation-test, and extrapolation-test partitions;
-  \item identify leakage caused by pointwise splitting, duplicate realizations, or test-fitted normalization;
-  \item fit and store invertible preprocessing transforms using training cases only;
-  \item flatten field arrays for minibatching without losing reconstruction indices or case balance;
-  \item verify Python--MATLAB axis, dtype, string, and checksum parity;
-  \item decide when a schema change is backward compatible and when it changes scientific meaning;
+  \item assign stable physical-case, realization, initial-state, and operator-example identities;
+  \item construct whole-trajectory training, validation, interpolation-test, and extrapolation-test partitions before extracting target times;
+  \item identify leakage caused by time-snapshot splitting, duplicate realizations, or test-fitted preprocessing;
+  \item construct $(\psi_0,U_0,\eta,\nu,t)\mapsto(\psi_t,U_t)$ from raw numerical arrays without rendering images;
+  \item pack fields and scalar context into reversible tensor channels while preserving the parent HDF5 axes and values;
+  \item explain why $A_0$ remains case metadata even though the complete $U_0$ field already encodes it;
+  \item distinguish the number of physical trajectories from the much larger number of time-conditioned operator pairs;
+  \item define common-grid and resolution rules appropriate to a full-field neural operator;
+  \item fit and store invertible field and scalar transforms using training cases only;
+  \item preserve the spatial-grid metadata needed for spectral physics residuals in Module~5;
+  \item verify Python--MATLAB field-array and tensor-packing parity;
   \item describe the explicit translation work required for genuine M3D-C1 data; and
-  \item state precisely which claims a Module~3 dataset can and cannot support.
+  \item state precisely which claims a Module~3 operator dataset can and cannot support.
 \end{enumerate}
 
 \ProjectTOC
@@ -159,21 +168,30 @@ For a physical parameter vector
 \begin{equation}
 \vect{\mu}_c=(\eta_c,\nu_c,A_{0,c}),
 \end{equation}
-Module~2 approximates a reduced-MHD trajectory. Module~3 creates an auditable dataset
+Module~2 approximates one accepted reduced-MHD trajectory. Module~3 creates an auditable release
 \begin{equation}
-\mathcal D
-=\left(\mathcal C,\mathcal M,\mathcal S,\mathcal T\right),
+\mathcal D=\left(\mathcal C,\mathcal M,\mathcal S,\mathcal V,\mathcal T\right),
 \label{eq:dataset_object}
 \end{equation}
 where
 \begin{itemize}
   \item $\mathcal C$ is a set of accepted canonical case files;
   \item $\mathcal M$ is a manifest describing and indexing those files;
-  \item $\mathcal S$ is an immutable whole-case split assignment; and
-  \item $\mathcal T$ is the set of declared, invertible preprocessing transforms.
+  \item $\mathcal S$ is an immutable whole-physical-case split assignment;
+  \item $\mathcal V$ is a declared full-field operator view specifying how initial fields and target times become input-target tensors; and
+  \item $\mathcal T$ is the set of declared, invertible preprocessing transforms fitted only from training cases.
 \end{itemize}
 
-The manifest is part of the scientific artifact. A directory of HDF5 files without an authoritative index does not define which files belong to a release, which are accepted, or how they are partitioned.
+For each accepted case and saved target time $t_n$, the primary version-1 operator example is
+\begin{equation}
+X_{c,n}=\left(\psi^{(c)}_0(\cdot,\cdot),U^{(c)}_0(\cdot,\cdot),\eta_c,\nu_c,t_n\right),
+\qquad
+Y_{c,n}=\left(\psi^{(c)}_n(\cdot,\cdot),U^{(c)}_n(\cdot,\cdot)\right).
+\label{eq:operator_example}
+\end{equation}
+The dots mean the complete two-dimensional numerical arrays on the accepted grid. They do not mean images, contour plots, or isolated coordinate samples.
+
+The manifest and operator-view specification are part of the scientific artifact. A directory of HDF5 files without an authoritative index does not define which files belong to a release, which are accepted, which target times form learning examples, or how they are partitioned.
 
 \subsection{Four layers that must not be confused}
 
@@ -189,7 +207,7 @@ Layer & Object & Main question \\
 Physical model & Continuous fields and equations & What do $\psi,U,J,\omega,\eta,\nu,A_0$ mean? \\
 Numerical realization & Finite arrays from one solver run & Which grid, time step, integrator, precision, and verification status produced them? \\
 Serialized reference & HDF5 datasets plus metadata & Can another reader reconstruct the same logical arrays and meanings? \\
-Learning view & Selected or transformed examples & Which split, sampling rule, scales, and inverse transforms define the neural task? \\
+Learning view & Whole-field input-target tensors derived from accepted trajectories & Which split, target-time rule, channel layout, grid class, scales, and inverse transforms define the neural task? \\
 \bottomrule
 \end{longtable}
 
@@ -297,27 +315,28 @@ The canonical fields are stored in the physical nondimensional variables above. 
 \section{Identity and dataset hierarchy}
 \label{sec:identity}
 
-\subsection{Case, realization, snapshot, point, and example}
+\subsection{Case, realization, snapshot, point, and operator example}
 
 \begin{definitionbox}
-A \textbf{physical case} is an initial-value problem with fixed equations, domain, boundary conditions, initial-condition formula, parameters, and intended time horizon. A \textbf{numerical realization} is one discretized solution of that physical case with a specified solver, grid, time step, precision, and source revision.
+A \textbf{physical case} is an initial-value problem with fixed equations, domain, boundary conditions, complete initial fields, physical parameters, and intended time horizon. A \textbf{numerical realization} is one discretized solution of that physical case with a specified solver, grid, time step, precision, and source revision. An \textbf{operator example} is one complete initial state plus scalar context paired with one complete target state.
 \end{definitionbox}
 
-One physical case can have several realizations: coarse and fine grids, Python and MATLAB implementations, or repeated verification runs. A snapshot is one full spatial state at $t_n$. A grid point is one pair $(x_i,y_j)$. A supervised example is a selected input-target pair constructed from one array element.
+One physical case can have several realizations: coarse and fine grids, Python and MATLAB implementations, or repeated verification runs. A snapshot is one full spatial state at $t_n$. A grid point is one pair $(x_i,y_j)$ inside a snapshot, but it is not the version-1 supervised unit. A single accepted trajectory can yield several examples $(X_{c,n},Y_{c,n})$ at different target times. Those examples remain correlated because they share the same initial state and dynamical history.
 
-\subsection{Why two identifiers are required}
+\subsection{Why several identifiers are required}
 
 The contract uses:
 \begin{itemize}
-  \item \code{physical\_case\_id}: invariant across scientifically equivalent numerical realizations; and
-  \item \code{case\_id}: unique to one canonical numerical realization.
+  \item \code{physical\_case\_id}: invariant across scientifically equivalent numerical realizations;
+  \item \code{case\_id}: unique to one canonical numerical realization;
+  \item \code{initial\_state\_id}: fingerprint of the canonical initial $\psi_0,U_0$ fields together with their grid and physical-definition versions; and
+  \item \code{operator\_example\_id}: unique to one derived full-field pair, including its parent case, target time, and operator-view version.
 \end{itemize}
 
-The physical identifier is derived from canonical physics-defining metadata: equations version, conventions version, domain, boundary conditions, initial-condition name and version, parameter vector, and intended output horizon. The realization identifier additionally includes discretization, integrator, precision, implementation identity, and source/config fingerprints.
+The physical identifier is derived from canonical physics-defining metadata: equations version, conventions version, domain, boundary conditions, initial-field definitions or digests, transport parameters, and intended output horizon. The realization identifier additionally includes discretization, integrator, precision, implementation identity, and source/config fingerprints. The initial-state identifier becomes particularly useful when future campaigns contain several different initial-field families rather than only the current $A_0$ amplitude family.
 
-\begin{warningbox}[
-\,: duplicate-realization leakage]
-Splitting by \code{case\_id} alone can place a $128^2$ realization in training and a $256^2$ realization of the same physical case in test. That is not an unseen-parameter test. All realizations sharing a \code{physical\_case\_id} must be assigned to the same partition.
+\begin{warningbox}[\,: duplicate-trajectory leakage]
+Splitting by \code{case\_id} or by \code{operator\_example\_id} can place one target time in training and another target time from the same physical trajectory in test. That is not an unseen-case test. All realizations and all operator examples sharing a \code{physical\_case\_id} must remain in one partition.
 \end{warningbox}
 
 \subsection{Opaque identifiers and readable metadata}
@@ -334,11 +353,12 @@ Floating-point parameters do not belong only in a filename. Strings such as \cod
 
 The logical hierarchy is
 \begin{equation}
-\text{campaign}\supset\text{dataset release}\supset
-\text{physical cases}\supset\text{realizations}\supset
-\text{snapshots}\supset\text{grid points}.
+\begin{aligned}
+\text{campaign}&\supset\text{dataset release}\supset\text{physical cases}\supset\text{realizations}\\
+&\supset\text{snapshots}\supset\text{operator examples}\supset\text{grid points}.
+\end{aligned}
 \end{equation}
-A campaign records the parameter-study intent. A dataset release freezes a particular accepted set, split manifest, and schema versions. New accepted cases require a new release even if old files remain byte-identical.
+A campaign records the parameter-study intent. A dataset release freezes a particular accepted set, split manifest, operator-view definition, and schema versions. Operator examples are derived from snapshots but never split independently of their physical case. New accepted cases or a changed operator-view definition require a new release or view version even if the parent HDF5 files remain byte-identical.
 
 \section{Canonical HDF5 case schema}
 \label{sec:hdf5}
@@ -354,7 +374,8 @@ Every canonical case has root attributes
 \code{schema\_name}&=\code{pinn\_m3dc1.case},\\
 \code{schema\_version}&=\code{1.0.0},\\
 \code{source\_kind}&=\code{synthetic\_reduced\_mhd},\\
-\code{axis\_order}&=\code{t,x,y}.
+\code{axis\_order}&=\code{t,x,y},\\
+\code{learning\_interface}&=\code{full\_field\_operator\_v1}.
 \end{align}
 The schema name answers ``which contract?'' and the version answers ``which revision?'' A generic attribute such as \code{version=1} is insufficient because solver, equations, schema, and dataset releases evolve independently.
 
@@ -477,7 +498,7 @@ An event record stores at least \code{present}, \code{time}, \code{snapshot\_ind
 
 \subsection{Case parameters}
 
-The version-1 parameter vector is
+The version-1 physical-case parameter vector is
 \begin{equation}
 \vect\mu=(\eta,\nu,A_0).
 \end{equation}
@@ -629,13 +650,15 @@ The version-1 manifest is UTF-8 JSON conforming to RFC~8259 \cite{RFC8259}. JSON
 The top-level required fields are:
 \begin{itemize}
   \item \code{schema\_name = pinn\_m3dc1.dataset\_manifest};
-  \item \code{schema\_version = 1.0.0};
+  \item \code{schema\_version = 1.1.0};
   \item \code{dataset\_id} and \code{release\_version};
   \item \code{created\_utc};
   \item \code{case\_schema\_requirement};
   \item \code{physics\_compatibility};
   \item ordered \code{cases};
   \item \code{split\_manifest};
+  \item \code{task\_specification};
+  \item \code{operator\_view};
   \item \code{preprocessing};
   \item \code{integrity}; and
   \item \code{provenance}.
@@ -650,7 +673,8 @@ Each case entry stores:
   \item \code{physical\_case\_id} and \code{case\_id};
   \item source kind and acceptance status;
   \item parameter vector;
-  \item coordinate and field shapes;
+  \item coordinate and field shapes plus a grid-compatibility signature;
+  \item initial-state identifier and initial-field digests;
   \item schema and conventions versions;
   \item split and test-regime labels; and
   \item any duplicate, refinement-family, or parity-family identifier.
@@ -673,263 +697,155 @@ This follows the central release principle of semantic versioning: published con
 
 \subsection{The scientific unit of generalization}
 
-The main surrogate question is whether a model predicts an unseen parameter combination. Therefore the split unit is the physical case, not an array element. Define disjoint sets
+The main operator question is whether a model predicts the evolution of an unseen physical trajectory, not whether it predicts a later snapshot from a trajectory it already saw. Therefore the split unit is the \emph{physical case before operator-pair extraction}. Define disjoint sets
 \begin{equation}
-\mathcal P_{\rm tr},\quad
-\mathcal P_{\rm va},\quad
-\mathcal P_{\rm ti},\quad
-\mathcal P_{\rm te},
+\mathcal P_{\rm tr},\quad \mathcal P_{\rm va},\quad \mathcal P_{\rm ti},\quad \mathcal P_{\rm te},
 \end{equation}
-for training, validation, interpolation test, and extrapolation test physical-case identifiers. They satisfy pairwise disjointness and
-\begin{equation}
-\mathcal P_{\rm all}
-=\mathcal P_{\rm tr}\cup\mathcal P_{\rm va}
-\cup\mathcal P_{\rm ti}\cup\mathcal P_{\rm te}.
-\end{equation}
+for training, validation, interpolation test, and extrapolation test physical-case identifiers. They are pairwise disjoint and together cover the accepted learning release.
 
-All realizations, snapshots, and grid points sharing one physical-case identifier remain in the same partition.
+Every numerical realization, every saved target time, and every derived operator example associated with one \code{physical\_case\_id} inherits the same partition. The order of operations is
+\begin{equation}
+\boxed{\text{accept trajectories}\rightarrow\text{group physical cases}\rightarrow\text{freeze splits}\rightarrow\text{extract operator pairs}}.
+\end{equation}
 
 \subsection{Roles of the partitions}
+Training cases update model parameters and fit preprocessing. Validation cases select architecture, optimization, target-time sampling, operator hyperparameters, and checkpoints. Interpolation tests estimate performance on held-out physical cases supported by the training design. Extrapolation tests probe cases outside the declared training support. Final test results must not drive redesign.
 
-\begin{longtable}{p{0.19\textwidth}p{0.34\textwidth}p{0.37\textwidth}}
-\toprule
-Partition & Permitted use & Forbidden use \\
-\midrule
-\endfirsthead
-\toprule
-Partition & Permitted use & Forbidden use \\
-\midrule
-\endhead
-Training & Update model weights; fit preprocessing; design training samplers & Final unbiased scoring \\
-Validation & Select architecture, loss weights, schedules, stopping, and checkpoints & Updating ordinary model weights as labeled training data \\
-Interpolation test & Final scoring on unseen parameter combinations supported by the training parameter region & Any design, scaling, or stopping decision \\
-Extrapolation test & Final scoring outside the declared training support & Any design, scaling, or stopping decision \\
-\bottomrule
-\end{longtable}
+\subsection{Interpolation in scalar parameters and initial fields}
+For version~1, transport interpolation is assessed in the $(\eta,\nu)$ plane and $A_0$ remains a useful case label even though its effect is represented through $U_0$. A held-out scalar parameter vector can be called interpolation only under a declared geometric rule such as membership in the convex hull of training parameter vectors.
 
-\subsection{Interpolation in several parameters}
-
-For training parameter vectors $\{\vect\mu_c:c\in\mathcal P_{\rm tr}\}$, a held-out vector inside their convex hull is classified as parameter interpolation for the primary geometric rule. A vector outside that hull is extrapolation. Axis-aligned range labels are also stored because they are easy to interpret:
+Initial-field generalization is a separate axis. The present family
 \begin{equation}
-\eta_{\min}^{\rm tr}\le\eta\le\eta_{\max}^{\rm tr},
-\quad
-\nu_{\min}^{\rm tr}\le\nu\le\nu_{\max}^{\rm tr},
-\quad
-A_{0,\min}^{\rm tr}\le A_0\le A_{0,\max}^{\rm tr}.
+\psi_0=\sin x\sin y,\qquad U_0=A_0(\cos x-\cos y)
 \end{equation}
-A point can satisfy all three coordinate ranges yet lie outside the convex hull. Both labels are useful and neither should be hidden inside a single combined test score.
+contains one fixed magnetic shape and one fixed flow shape with varying amplitude. Consequently, the current release cannot claim generalization across arbitrary initial-field shapes. Future campaigns with new initial-state families must label whether a held-out initial state lies within or outside the training family.
 
 \subsection{Designed split before random split}
-
-When the parameter sweep is a structured grid, deliberately reserve interior combinations for interpolation and edge or outside-range combinations for extrapolation. Random splitting may accidentally create an easy or scientifically uninformative test set. Randomness is permitted only within a predeclared stratification rule and with a saved seed and algorithm version.
+A designed split is preferred for a small parameter sweep because it guarantees scientifically interpretable interpolation and extrapolation cases. If a larger future campaign uses random partitioning, randomness is permitted only within a predeclared stratification rule and with a saved seed and algorithm version.
 
 \subsection{Duplicate and near-duplicate grouping}
-
-Before splitting, group cases that share:
-\begin{itemize}
-  \item the same physics-defining parameters;
-  \item the same initial condition under a different numerical resolution;
-  \item Python and MATLAB parity realizations;
-  \item restart-derived duplicates;
-  \item migrated copies of an older schema; or
-  \item numerically equivalent parameters within the declared canonicalization tolerance.
-\end{itemize}
-The group, not the file, is assigned to a partition.
+Before splitting, group cases that share the same physics-defining parameters and canonical initial fields, the same initial condition under a different numerical resolution, Python/MATLAB parity realizations, restart-derived duplicates, migrated copies, or numerically equivalent initial fields within the declared tolerance. The group, not the file or target time, is assigned to a partition.
 
 \subsection{No test information in preprocessing}
-
 After the split is frozen, every fitted statistic has the form
 \begin{equation}
-\widehat{\vect\alpha}
-=\operatorname{FitTransform}(\mathcal D_{\rm tr}),
+\widehat{\vect\alpha}=\operatorname{FitTransform}(\mathcal D_{\rm tr}),
 \end{equation}
-where $\vect\alpha$ contains means, scales, ranges, logarithmic-transform choices, clipping policies, or sampling weights. Validation and test cases are transformed using $\widehat{\vect\alpha}$ without refitting.
+where $\vect\alpha$ contains field means, scales, coefficient transforms, time transforms, clipping policies, or sampling weights. Validation and test cases are transformed using $\widehat{\vect\alpha}$ without refitting.
 
-\begin{warningbox}[
-\,: leakage through convenience]
-Computing a separate output mean or scale for each test trajectory reveals information about that trajectory. Even though no target value is placed directly into a training batch, the preprocessing has used the complete held-out field.
+\begin{warningbox}[\,: leakage through convenience]
+Computing a separate field mean, target scale, or spatial interpolation rule from a held-out trajectory reveals information about that trajectory. The operator view must be executable from parent metadata plus training-fitted transforms alone.
 \end{warningbox}
 
-\subsection{Split freezing and test access}
+\subsection{Split freezing and target-time access}
+The split manifest is written before model development and before target times are converted into learning pairs. Test fields and metrics must not guide architecture, loss weights, target-time sampling, training duration, or checkpoint selection. If repeated test inspection occurs, the set has become a validation set and a new untouched test release is required.
 
-The split manifest is written before model development. Test case identifiers can be visible for bookkeeping, but test values and metrics must not guide architecture, loss weights, sampling, training duration, or checkpoint selection. If repeated test inspection occurs, the set has become a validation set and a new untouched test release is required.
-
-\section{Learning-ready views and preprocessing}
+\section{Full-field operator views and preprocessing}
 \label{sec:preprocessing}
 
 \subsection{A view, not a replacement}
-
-A learning-ready view selects points and applies transforms to a canonical release. It records:
+A learning-ready operator view is a reproducible derivation from a canonical release. It records
 \begin{equation}
-\text{view}=(\text{parent release},\text{split},\text{selection},
-\text{transforms},\text{output layout}).
+\text{view}=(\text{parent release},\text{split},\text{target-time rule},\text{grid class},\text{channel layout},\text{transforms}).
 \end{equation}
-The canonical HDF5 cases remain unchanged. Views can be regenerated and compared because their instructions and random seeds are explicit.
+The canonical HDF5 cases remain unchanged.
 
-\subsection{Raw neural map}
-
-The physical input and primary target are
-\begin{align}
-\vect s&=(x,y,t,\eta,\nu,A_0),\\
-\vect q&=(\psi,U).
-\end{align}
-The learned map is
+\subsection{Raw full-field operator map}
+For case $c$ and target time $t_n$,
 \begin{equation}
-(x,y,t,\eta,\nu,A_0)
-\longmapsto(\widehat\psi,\widehat U).
+\boxed{\left(\psi^{(c)}_0,U^{(c)}_0,\eta_c,\nu_c,t_n\right)\longmapsto\left(\psi^{(c)}_n,U^{(c)}_n\right)}.
+\label{eq:raw_operator_map}
 \end{equation}
-$J$ and $\omega$ remain evaluation fields and derivative-consistency references; they are not primary target channels in the frozen Module~4/5 comparison.
+Each field symbol in Eq.~\eqref{eq:raw_operator_map} means the complete $N_x\times N_y$ scalar numerical array on the accepted grid. $J$ and $\omega$ remain stored verification and evaluation fields; they are not primary output channels.
 
-\subsection{Periodic coordinate representation}
+\begin{warningbox}[\,: numerical fields are not images]
+No rendering step belongs between HDF5 and the neural operator. Contour plots, field-line plots, PNG files, screenshots, color maps, and rasterized figures are presentation artifacts. The learning tensor must be traceable losslessly to the original scalar arrays.
+\end{warningbox}
 
-Define
+\subsection{Input tensor packing}
+A convenient channel-last logical representation is
 \begin{equation}
-\phi_x=\frac{2\pi x}{L_x},
-\qquad
-\phi_y=\frac{2\pi y}{L_y}.
+\mat X_{c,n}\in\mathbb R^{N_x\times N_y\times C_{\rm in}},\qquad
+\mat Y_{c,n}\in\mathbb R^{N_x\times N_y\times 2}.
 \end{equation}
-The primary spatial encoding is
+The two mandatory spatial input channels are $\psi_0$ and $U_0$. Scalar context may be supplied separately as
 \begin{equation}
-\vect e_{\rm per}
-=\left(\sin\phi_x,\cos\phi_x,
-\sin\phi_y,\cos\phi_y\right).
+\vect a_{c,n}=(\eta_c,\nu_c,t_n)
 \end{equation}
-The encoding is a model input transform, not a change to the stored coordinates. Raw $(x,y)$ remain available for quadrature, plotting, residual interpretation, and inverse audit.
+or broadcast as constant $N_x\times N_y$ channels. Both layouts represent the same physics and the view version must state which is used. Optional deterministic coordinate channels are architecture-specific additions, not replacements for the authoritative $x,y$ arrays.
 
-\subsection{Time and amplitude scaling}
-
-For a declared training time interval,
+\subsection{Target tensor packing}
+The primary target channels are
 \begin{equation}
-\widetilde t
-=2\frac{t-t_{\min}^{\rm tr}}
-{t_{\max}^{\rm tr}-t_{\min}^{\rm tr}}-1.
+\mat Y_{c,n}[:,:,0]=\psi^{(c)}(t_n),\qquad \mat Y_{c,n}[:,:,1]=U^{(c)}(t_n).
 \end{equation}
-$A_0$ may use the same affine map based on training-case bounds or training statistics. Values outside $[-1,1]$ are permitted at extrapolation time and must not be silently clipped.
+Channel order is explicit and versioned. Packing is reversible: unpacking must reproduce the parent HDF5 arrays exactly before any optional floating-point cast or preprocessing.
 
-\subsection{Transport-coefficient transforms}
+\subsection{$A_0$ as metadata rather than duplicate context}
+Because $U_0=A_0(\cos x-\cos y)$, the complete $U_0$ array already contains the perturbation amplitude. The primary operator context therefore does not duplicate $A_0$. It remains required metadata and supports the consistency check
+\begin{equation}
+\norm{U_0-A_0(\cos x-\cos y)}\le\tau_{\rm IC}.
+\end{equation}
+A future arbitrary-initial-field dataset may have no scalar $A_0$ at all.
 
-If positive $\eta$ and $\nu$ span several orders of magnitude, the declared transform may begin with
-\begin{equation}
-r_\eta=\log_{10}\eta,
-\qquad
-r_\nu=\log_{10}\nu,
-\end{equation}
-followed by training-only affine scaling. If the design is narrow and linear, raw coefficients may be scaled instead. The selected transform is part of the view version. An ideal case with zero coefficient cannot pass through a logarithm and requires an explicit separate policy.
+\subsection{Common-grid requirement}
+A version-1 full-field tensor batch requires a common logical grid. The primary learning release therefore chooses one accepted production realization per physical case with the same $(N_x,N_y,L_x,L_y)$ and identical coordinate arrays. Higher-resolution verification realizations remain linked provenance rather than additional learning cases. Any future restriction, interpolation, padding, or mesh projection is a separately versioned transform with quantified error.
 
-\subsection{Output standardization}
+\subsection{Field preprocessing}
+The canonical fields remain in physical nondimensional variables. A derived view may standardize the two physical channels using training-only statistics,
+\begin{equation}
+\widetilde\psi=\frac{\psi-m_\psi}{s_\psi},\qquad
+\widetilde U=\frac{U-m_U}{s_U},\qquad s_\psi,s_U>0.
+\end{equation}
+The same $\psi$ transform applies to initial and target $\psi$, and the same $U$ transform applies to initial and target $U$, unless a different choice is explicitly versioned. Scientific evaluation first inverts these transforms.
 
-The primary neural view stores
-\begin{equation}
-\widetilde\psi=\frac{\psi-m_\psi}{s_\psi},
-\qquad
-\widetilde U=\frac{U-m_U}{s_U},
-\end{equation}
-with $m_\psi,s_\psi,m_U,s_U$ fitted from the declared training observations only. Required conditions are
-\begin{equation}
-s_\psi>0,
-\qquad
-s_U>0.
-\end{equation}
-The scientific prediction is recovered before evaluation:
-\begin{equation}
-\widehat\psi=m_\psi+s_\psi\widehat{\widetilde\psi},
-\qquad
-\widehat U=m_U+s_U\widehat{\widetilde U}.
-\end{equation}
+\subsection{Time and transport-coefficient transforms}
+Target time may use a training-defined affine map. If positive $\eta$ and $\nu$ span several orders of magnitude, the view may use $\log_{10}\eta$ and $\log_{10}\nu$ followed by training-only affine scaling. These are view transforms, not changes to the canonical case.
 
 \subsection{Statistic weighting policy}
+One trajectory can produce many target times and each field contains many grid values. The primary policy is case-balanced first, then target-time balanced, then area balanced. Dense output cadence or higher resolution may not dominate merely by contributing more scalars.
 
-A global pointwise mean weights cases in proportion to their number of stored points. If all accepted cases share the same grid and output count, this is equivalent to equal case weighting. If they differ, the contract must choose explicitly between:
-\begin{align}
-m_q^{\rm point}
-&=\frac{\sum_c\sum_{n,i,j}q^{(c)}_{n i j}}
-{\sum_c N_t^{(c)}N_x^{(c)}N_y^{(c)}},\\
-m_q^{\rm case}
-&=\frac{1}{N_{\rm case}}
-\sum_c\left[
-\frac{1}{N_t^{(c)}N_x^{(c)}N_y^{(c)}}
-\sum_{n,i,j}q^{(c)}_{n i j}\right].
-\end{align}
-The primary version-1 view uses case-balanced statistics so that a higher-resolution realization does not dominate merely by containing more entries.
+\subsection{Physics derivative metadata for Module 5}
+The revised physics-informed operator does not obtain spatial derivatives by differentiating a full-field operator. On the periodic structured grid, Module~5 can evaluate spatial derivatives of predicted fields using the declared Fourier wave-number convention, while the derivative with respect to conditioning time may be obtained through automatic differentiation with respect to scalar $t$. Module~3 therefore preserves exact $x,y$ arrays, domain periods, FFT wave-number ordering and normalization, periodic endpoint convention, any grid transform, and inverse preprocessing maps.
 
-\subsection{Chain-rule metadata for the PINN}
+\subsection{Clipping, imputation, and augmentation}
+The primary view performs no output clipping and no imputation. Clipping a held-out scalar input to the training range changes extrapolation into a boundary prediction. Noise, masking, random crops, synthetic image augmentation, or field perturbations are separately versioned experiments and cannot be inserted into the canonical operator view.
 
-Module~5 differentiates inverse-transformed fields with respect to raw physical coordinates. Therefore the preprocessing record must expose analytic Jacobian factors. For example, if
+\section{Operator-pair extraction, batching, and reconstruction}
+\label{sec:operator_pairs}
+
+\subsection{From one trajectory to time-conditioned pairs}
+For accepted case $c$, the pair builder reads $\psi_0,U_0$ once and associates them with selected target times,
 \begin{equation}
-\widetilde x=(x-m_x)/s_x,
-\qquad
-\psi=m_\psi+s_\psi\widetilde\psi,
+(c,n)\longmapsto(X_{c,n},Y_{c,n}).
 \end{equation}
-then
-\begin{align}
-\pd_x\psi&=\frac{s_\psi}{s_x}\pd_{\widetilde x}\widetilde\psi,\\
-\pd_x^2\psi&=\frac{s_\psi}{s_x^2}\pd_{\widetilde x}^2\widetilde\psi.
-\end{align}
-With sine-cosine encoding, automatic differentiation must traverse the phase map $2\pi x/L_x$. A black-box transform that cannot report these derivatives is not acceptable for the strong-form PINN.
+The $t=0$ pair is useful as an identity and packing test. Later target times are not independent trajectories.
 
-\subsection{Clipping and imputation}
+\subsection{Operator-example identity and pair manifest}
+Each example stores or deterministically reconstructs the parent dataset and case digests, physical-case/realization/initial-state identifiers, target snapshot index and exact $t_n$, operator-view version, preprocessing digest, grid signature, and \code{operator\_example\_id}. The pair manifest contains indices and metadata, not duplicated bulk arrays.
 
-The reference fields contain no missing required values. The primary view performs no output clipping and no imputation. Clipping a test input to the training range changes extrapolation into a boundary prediction and must not occur silently. Any robustness experiment that adds noise, masks values, or clips outliers is a separately versioned view.
-
-\section{Flattening, sampling, and reconstruction}
-\label{sec:flattening}
-
-\subsection{From arrays to supervised rows}
-
-For case $c$, the canonical array element gives
-\begin{align}
-\vect s^{(c,n,i,j)}
-&=(x_i,y_j,t_n,\eta_c,\nu_c,A_{0,c}),\\
-\vect q^{(c,n,i,j)}
-&=(\psi^{(c)}_{n i j},U^{(c)}_{n i j}).
-\end{align}
-A flattened table is permitted as a cache, but every row retains:
+\subsection{Batch shapes}
+For batch size $B$ on the common grid, a channel-last loader may return
 \begin{equation}
-(\code{case\_id},n,i,j,\code{split},\code{selection\_id}).
+\mat X\in\mathbb R^{B\times N_x\times N_y\times C_{\rm in}},\qquad
+\mat Y\in\mathbb R^{B\times N_x\times N_y\times 2},
 \end{equation}
-Those indices make the operation reversible.
+plus case identifiers, target times, and any separate context vector. Framework-specific channel-first permutations are explicit and reversible.
 
-\subsection{Canonical linear index}
+\subsection{Four counts that must not be conflated}
+Report separately the number of accepted physical trajectories, numerical realizations retained for provenance, selected time-conditioned operator examples, and scalar grid values contained in those tensors. A dataset with 27 trajectories and 100 target times per trajectory contains 2700 operator pairs, not 2700 independent physical cases.
 
-For zero-based indices and axis order $[t,x,y]$, define
-\begin{equation}
-\ell=(nN_x+i)N_y+j.
-\label{eq:linear_index}
-\end{equation}
-Then
-\begin{align}
-j&=\ell\bmod N_y,\\
-i&=\left\lfloor\frac{\ell}{N_y}\right\rfloor\bmod N_x,\\
-n&=\left\lfloor\frac{\ell}{N_xN_y}\right\rfloor.
-\end{align}
-This is a logical enumeration for interchange. A language may use a different native linear-memory order internally, but serialized observation indices use Equation~\eqref{eq:linear_index}.
+\subsection{Target-time sampling}
+Training may use all saved target times or a deterministic subset. Uniform-in-time, event-stratified, and curriculum sampling are different learning distributions. A fair Module~4/5 comparison uses the same labeled target pairs unless the experiment explicitly studies data-budget differences.
 
-\subsection{Observation sets}
+\subsection{Case-balanced sampling}
+The recommended sampler first selects physical cases, then target times within those cases. This prevents cases with more stored times from controlling the loss.
 
-An observation set is a deterministic selection of rows for one data budget. It stores:
-\begin{itemize}
-  \item parent dataset and split manifest digests;
-  \item per-case selected $(n,i,j)$ indices;
-  \item selection algorithm and version;
-  \item random seed;
-  \item desired and realized counts;
-  \item replacement policy;
-  \item stratification by time or structure; and
-  \item its own checksum.
-\end{itemize}
-Module~4 and Module~5 use the same observation-set identifier in a fair comparison.
+\subsection{Resolution and ragged cases}
+Canonical releases may retain verification realizations with different $N_x,N_y,N_t$, but the primary tensor view does not pad or interpolate them automatically. One declared production-grid realization per physical case contributes to the learning view. Multi-resolution studies require explicit scientific restriction/prolongation or mesh-aware methods.
 
-\subsection{Hierarchical sampling}
-
-The recommended training sampler chooses a case, then a time, then spatial points. This makes it possible to balance cases and prevent dense snapshots from controlling the loss. The exact probabilities are saved. Uniform point sampling over all concatenated arrays is a different distribution and must be labeled as such.
-
-\subsection{Ragged cases}
-
-Cases may eventually have different $N_x,N_y,N_t$ or saved times. The canonical release stores each case independently and does not pad reference fields. A learning view may concatenate rows because coordinate networks accept variable grids. Any padded tensor representation must store masks and may not treat padding as a physical zero.
-
-\subsection{Full-grid evaluation remains authoritative}
-
-Training observations are a subset. Validation and test scoring reconstruct full declared evaluation grids and compare all four fields and diagnostics. A good error on the sampled training rows is not evidence of correct topology, derivative fields, or current-sheet structure.
+\subsection{Full-field evaluation remains authoritative}
+Validation and test scoring compares complete predicted $\psi,U$ arrays with complete targets. Derived $J$, $\omega$, energy, topology, current-sheet, periodicity, and PDE-residual diagnostics are then evaluated. Low tensor MSE alone is not evidence of correct reconnection dynamics.
 
 \section{Schema and physics validation}
 \label{sec:validation}
@@ -991,6 +907,9 @@ The mean of $\psi$ is compared with its recorded initial value. A case-dependent
 
 Recompute energies, maximum current, and selected topology diagnostics from stored fields. Stored histories must agree within declared tolerances. This detects stale diagnostics written from an earlier in-memory state or an inconsistent axis permutation.
 
+\subsection{Full-field operator-view checks}
+For every selected pair, validation requires the input $\psi_0,U_0$ arrays to equal snapshot zero of the parent case, the target arrays to equal the declared parent snapshot before preprocessing, target time to equal the authoritative $t_n$, all channels to share the declared grid registration, broadcast scalar channels to equal their metadata values, and pack/unpack to recover parent arrays exactly. No rendering, color conversion, resize, or image codec may appear in the canonical provenance path. At $t=0$, the target must reproduce the initial fields within storage tolerance.
+
 \subsection{Manifest checks}
 
 The release validator requires:
@@ -1001,13 +920,13 @@ The release validator requires:
   \item physical-case groups are split exactly once;
   \item train, validation, and test groups are disjoint;
   \item preprocessing depends only on training identifiers;
-  \item observation indices lie inside their parent arrays; and
+  \item operator-pair indices lie inside their parent trajectories and inherit the parent split; and
   \item all parent digests and version constraints resolve.
 \end{itemize}
 
 \begin{checkpointbox}[
 \,: fail before concatenation]
-Compatibility is checked case by case before any arrays are concatenated. Once incompatible arrays have been flattened together, their original meanings can be difficult or impossible to recover.
+Compatibility is checked case by case before any tensors are packed. Once incompatible arrays have been silently stacked or resampled, their original meanings can be difficult or impossible to recover.
 \end{checkpointbox}
 
 \section{Python--MATLAB interoperability}
@@ -1034,6 +953,9 @@ MATLAB & Python & Canonical logical arrays after explicit mapping \\
 
 Every direction uses a small non-square sentinel case and at least one production-like case.
 
+\subsection{Operator tensor packing parity}
+Python and MATLAB independently construct at least one operator example from the same canonical case and must agree on logical $\psi_0,U_0,\psi_t,U_t$ arrays, target time, context values, and channel ordering before framework-specific permutation. A non-square sentinel grid is mandatory because square tensors can hide an $x$--$y$ transpose.
+
 \subsection{Strings, booleans, and scalars}
 
 Cross-language failures often arise from metadata rather than fields. The contract therefore specifies UTF-8 strings, scalar numeric datasets with rank zero, and acceptance flags stored as unsigned 8-bit integers with allowed values $0$ and $1$. Readers convert these representations to native strings and logical values only after schema validation.
@@ -1046,7 +968,7 @@ Serialized snapshot and grid indices are zero based. MATLAB converts to one-base
 \begin{equation}
 n_{\rm MATLAB}=n_{\rm stored}+1,
 \end{equation}
-and similarly for $i$ and $j$. Writing a MATLAB index without subtracting one creates a valid-looking but shifted observation set.
+and similarly for $i$ and $j$. Writing a MATLAB index without subtracting one creates a valid-looking but shifted target snapshot or operator pair.
 
 \subsection{Numeric comparison}
 
@@ -1197,9 +1119,9 @@ A writer can update $\psi$ but accidentally store $J$ from an earlier state. Rec
 
 A Boolean cannot explain which tolerances were applied or which test failed after a definition changed. Store the component results and recompute the aggregate.
 
-\subsection{Random point split}
+\subsection{Time-snapshot split leakage}
 
-Neighboring points from the same trajectory appear in both train and test. The resulting score measures interpolation within seen physical cases and overstates parameter generalization.
+Different target times from the same trajectory appear in both train and test. The model has already seen the same initial fields and physical parameters, so the score is not an unseen-case operator test. Split complete physical trajectories before extracting pairs.
 
 \subsection{Normalization before splitting}
 
@@ -1209,9 +1131,13 @@ Global means, standard deviations, parameter ranges, or clipping thresholds inco
 
 Parsing parameters from filenames loses type, unit, formula version, and canonical precision. Rename operations can silently change apparent meaning. Filenames assist humans; dataset contents and manifests are authoritative.
 
-\subsection{Plots as training data}
+\subsection{Rendered images as operator data}
 
-Images discard field precision, coordinates, gauge, units, sign, and the relationship among variables. They are visualization artifacts, not canonical targets.
+Images discard or quantize field precision, coordinates, gauge, units, sign, and the exact relationship among variables. Color maps also introduce presentation-dependent transformations. Rendered figures are not operator inputs or targets; raw scalar arrays are the learning data.
+
+\subsection{Silent grid resampling}
+
+Resizing an $N_x\times N_y$ field to satisfy a tensor shape changes the represented numerical function and its derivatives. Restriction, interpolation, padding, or mesh projection must be declared and validated; image-style resizing is never acceptable.
 
 \subsection{Schema-valid but physics-invalid}
 
@@ -1225,159 +1151,124 @@ Mapping a field named \code{psi} directly to the synthetic $\psi$ without checki
 \label{sec:contract}
 
 \subsection{Inputs}
-
 Module~3 receives:
 \begin{itemize}
-  \item closed Module~2 candidate case files;
-  \item complete verification records;
-  \item resolved run configurations;
-  \item equations, conventions, IC, diagnostic, and normalization versions; and
+  \item closed Module~2 candidate case files containing complete numerical trajectories;
+  \item complete verification records and resolved run configurations;
+  \item equations, conventions, IC, diagnostic, normalization, and operator-interface versions; and
   \item a version-controlled dataset-release configuration.
 \end{itemize}
 
 \subsection{Outputs}
-
 It produces:
 \begin{itemize}
-  \item immutable accepted canonical HDF5 cases;
-  \item rejected or quarantined cases outside the accepted index;
-  \item a versioned JSON dataset manifest;
-  \item a whole-physical-case split manifest;
-  \item training-only preprocessing records;
-  \item optional reproducible observation-set manifests;
-  \item integrity checksums; and
-  \item validation and Python--MATLAB round-trip reports.
+  \item immutable accepted canonical HDF5 cases and quarantined cases outside the accepted index;
+  \item a versioned JSON dataset manifest and whole-physical-case split manifest;
+  \item a versioned full-field operator-view specification;
+  \item a deterministic operator-pair manifest containing parent-case and target-time indices;
+  \item training-only preprocessing records and integrity checksums; and
+  \item Python--MATLAB round-trip and tensor-packing reports.
 \end{itemize}
 
 \subsection{Recommended components}
-
 \begin{longtable}{p{0.25\textwidth}p{0.63\textwidth}}
-\toprule
-Component & Responsibility \\
-\midrule
-\endfirsthead
-\toprule
-Component & Responsibility \\
-\midrule
-\endhead
+\toprule Component & Responsibility \\
+\midrule\endfirsthead
+\toprule Component & Responsibility \\
+\midrule\endhead
 Case inspector & Read candidate metadata without accepting it implicitly. \\
 Schema validator & Validate names, versions, dtypes, ranks, shapes, and allowed values. \\
 Physics validator & Recompute identities, gauge, periodicity, and diagnostic checks. \\
-Identity builder & Construct physical-case and realization identifiers from canonical metadata. \\
-Canonical writer & Publish atomic HDF5 cases in schema version 1.0.0. \\
-Manifest builder & Index membership, hashes, parameters, schemas, and ancestry. \\
+Identity builder & Construct physical-case, realization, and initial-state identifiers. \\
+Canonical writer & Publish atomic HDF5 cases in the canonical case schema. \\
+Manifest builder & Index membership, hashes, parameters, grids, schemas, and ancestry. \\
 Duplicate grouper & Keep equivalent physical cases and realizations in one split group. \\
-Split builder & Create designed whole-case partitions and freeze their digest. \\
-Preprocessor fitter & Fit invertible transforms on training observations only. \\
-Observation builder & Store deterministic per-case indices for controlled data budgets. \\
-Round-trip suite & Test Python/MATLAB readers and writers with sentinel and production cases. \\
-Migration tool & Convert an explicit old schema to a new one without overwriting parents. \\
+Split builder & Create designed whole-trajectory partitions and freeze their digest. \\
+Operator-view builder & Freeze input channels, context layout, target channels, grid class, and target-time policy. \\
+Pair-index builder & Create deterministic $(\code{case\_id},n)$ pair records without copying field arrays. \\
+Preprocessor fitter & Fit invertible field and scalar transforms on training cases only. \\
+Tensor packer & Pack/unpack arrays and context with explicit reversible channel order. \\
+Round-trip suite & Test Python/MATLAB HDF5 and operator-tensor parity. \\
+Migration tool & Convert explicit old schemas or views without overwriting parents. \\
 \bottomrule
 \end{longtable}
 
 \subsection{Required test families}
-
 \begin{itemize}
   \item missing path, wrong dtype, wrong rank, and wrong-axis negative tests;
-  \item non-square sentinel round trips in all language directions;
+  \item non-square sentinel HDF5 and tensor round trips;
   \item field identity, gauge, periodicity, and diagnostic recomputation;
   \item checksum corruption detection;
-  \item duplicate physical-case grouping;
-  \item split disjointness and coverage;
+  \item duplicate physical-case and initial-state grouping;
+  \item split disjointness and proof that all target times inherit the parent split;
   \item test-leakage guards for preprocessing dependencies;
-  \item flatten/unflatten exact recovery;
-  \item observation-set reproducibility;
-  \item schema-version acceptance and rejection matrix; and
+  \item operator-pair extraction and $t=0$ initial-target identity;
+  \item pack/unpack exact recovery of $\psi_0,U_0,\psi_t,U_t$;
+  \item grid-signature mismatch rejection and no-silent-resampling tests;
+  \item rendered-image provenance rejection for the canonical view;
+  \item schema/view-version acceptance and rejection matrix; and
   \item migration ancestry and scientific-invariant checks.
 \end{itemize}
 
 \subsection{Completion criteria}
-
-Module~3 implementation is complete only when:
-\begin{enumerate}[label=\arabic*.]
-  \item at least one accepted Module~2 trajectory is serialized and revalidated;
-  \item both languages read the same logical case values and metadata;
-  \item a release manifest passes integrity and membership checks;
-  \item all physical-case groups are assigned exactly once;
-  \item preprocessing proves training-only dependency;
-  \item full field reconstruction from observation indices passes;
-  \item deliberate corruption and leakage cases are rejected; and
-  \item a clean command reproduces the release from recorded configurations.
-\end{enumerate}
+Module~3 implementation is complete only when at least one accepted Module~2 trajectory is serialized and revalidated; both languages read the same logical case values; the release manifest passes; every physical-case group is assigned exactly once before pair extraction; the operator view and pair manifest reproduce declared tensors; preprocessing proves training-only dependency and inverse recovery; $t=0$ identity and non-square tensor parity pass; deliberate leakage, grid corruption, and rendered-image substitutions are rejected; and a clean command reproduces the release and operator view.
 
 \begin{warningbox}
-This physics note freezes the intended contract. The current repository module remains an implementation scaffold until the writers, validators, manifests, and tests above actually exist and pass.
+This physics note freezes the intended contract. The repository remains an implementation scaffold until the writers, validators, manifests, operator-view builders, and tests actually exist and pass.
 \end{warningbox}
 
 \section{Worked miniature example}
 \label{sec:worked}
 
 \subsection{A tiny accepted realization}
-
-Suppose a sentinel case has
-\begin{equation}
-N_t=3,qquad N_x=4,qquad N_y=5.
-\end{equation}
-Then every field has shape $[3,4,5]$ and contains $60$ values. Define
+Suppose $N_t=3$, $N_x=4$, $N_y=5$. Every canonical field has shape $[3,4,5]$. Define the asymmetric sentinel
 \begin{equation}
 q[n,i,j]=10^4n+10^2i+j.
 \end{equation}
-The entry $q[2,3,4]=20304$. Any exchange of $x$ and $y$, one-based shift, or time-axis reversal changes this expected value.
+Then $q[2,3,4]=20304$, so axis exchange or time reversal is unmistakable.
 
-\subsection{Flatten and invert}
-
-For $(n,i,j)=(2,3,4)$, Equation~\eqref{eq:linear_index} gives
-\begin{equation}
-\ell=(2\cdot4+3)\cdot5+4=59.
-\end{equation}
-Inversion gives
+\subsection{Construct one operator pair}
+For target index $n=2$,
 \begin{align}
-j&=59\bmod5=4,\\
-i&=\left\lfloor59/5\right\rfloor\bmod4=3,\\
-n&=\left\lfloor59/20\right\rfloor=2.
+X_{c,2}&=(\psi[0,:,:],U[0,:,:],\eta,\nu,t_2),\\
+Y_{c,2}&=(\psi[2,:,:],U[2,:,:]).
 \end{align}
-Thus the logical last element is recovered exactly, independent of native language indexing.
+If scalar context is broadcast, $\eta$, $\nu$, and $t_2$ become constant $4\times5$ channels. If stored separately, the field arrays are unchanged. Either representation must unpack to the same parent HDF5 values.
+
+\subsection{The $t=0$ identity test}
+At target index zero,
+\begin{equation}
+Y_{c,0}=(\psi[0,:,:],U[0,:,:])
+\end{equation}
+must equal the mandatory initial-state channels of $X_{c,0}$ before preprocessing. A mismatch reveals target-index, case, axis, or channel errors before training.
 
 \subsection{Physical-case grouping example}
-
-Suppose three files share $\eta=10^{-3}$, $\nu=10^{-3}$, $A_0=0.1$ and the same physics definitions:
-\begin{itemize}
-  \item Python $128^2$ production realization;
-  \item MATLAB $128^2$ parity realization; and
-  \item Python $256^2$ refinement realization.
-\end{itemize}
-They have three \code{case\_id} values but one \code{physical\_case\_id}. If the production realization is assigned to training, the other two cannot be used as unseen test cases. They may support training-only verification or be excluded from learning releases.
+Python $128^2$ production, MATLAB $128^2$ parity, and Python $256^2$ refinement realizations with the same complete initial fields and transport parameters have three \code{case\_id} values but one \code{physical\_case\_id}. The primary operator view chooses the declared production-grid realization; the others remain verification evidence.
 
 \subsection{Training-only scale example}
-
-Assume the training observations have
-\begin{equation}
-m_\psi=0.02,qquad s_\psi=0.71.
-\end{equation}
-A held-out value $\psi=0.80$ becomes
-\begin{equation}
-\widetilde\psi=\frac{0.80-0.02}{0.71}\approx1.099.
-\end{equation}
-The fact that this transformed value exceeds one is not an error. Refitting the scale on the held-out case or clipping it would change the evaluation question.
+If training gives $m_\psi=0.02$ and $s_\psi=0.71$, a held-out entry $\psi=0.80$ becomes $\widetilde\psi\approx1.099$. Refitting or clipping on the held-out trajectory would change the evaluation question.
 
 \subsection{Acceptance logic}
-
-If the HDF5 file is structurally valid but the recomputed current gives
-\begin{equation}
-\frac{\norm{J+\Laph\psi}_2}{\norm J_2}=2\times10^{-3}
-\end{equation}
-against a tolerance of $10^{-10}$, the case is rejected or quarantined. It is not repaired by renaming $J$ or loosening the tolerance after seeing the result. The producer or convention mismatch must be diagnosed.
+If a structurally valid case fails $J=-\Laph\psi$ by orders of magnitude above tolerance, it is rejected or quarantined. Changing the operator view cannot repair an invalid numerical reference.
 
 \section{Summary and bridge to Module 4}
 \label{sec:summary}
 
-Module~3 turns accepted numerical trajectories into a stable scientific interface. The canonical case preserves raw dimensionless coordinates, float64 fields, parameters, diagnostics, equations, numerical settings, verification evidence, and provenance. Logical axes are explicitly $[t,x,y]$; $J=-\Lap\psi$ and $\omega=\Lap U$ remain checkable identities; the zero-mean gauge of $U$ is enforced and audited.
+Module~3 turns accepted numerical trajectories into a stable full-field scientific interface. Canonical cases preserve raw dimensionless coordinates, float64 fields, parameters, diagnostics, equations, numerical settings, verification evidence, and provenance. Logical axes remain $[t,x,y]$; $J=-\Lap\psi$ and $\omega=\Lap U$ remain checkable identities.
 
-The dataset manifest freezes release membership, file integrity, physical-case grouping, split assignment, and preprocessing. Complete physical cases, including all numerical realizations of the same initial-value problem, remain in one partition. Interpolation and extrapolation tests are separated. Every fitted transform uses training data only, remains invertible, and exposes the chain-rule information required by the PINN.
+For each accepted physical case and selected target time, Module~3 constructs
+\begin{equation}
+(\psi_0,U_0,\eta,\nu,t)\longmapsto(\psi_t,U_t)
+\end{equation}
+using complete $N_x\times N_y$ numerical arrays. Scalar context may be separate or broadcast; the layout is versioned and reversible. Rendered images never enter the canonical learning path.
 
-The phrase M3D-C1-shaped is intentionally limited. It means that the workflow anticipates mesh or coordinate metadata, parameters, evolving fields, diagnostics, provenance, and an explicit adapter. It does not identify the synthetic Cartesian potentials with code-native M3D-C1 variables. Genuine exports first remain source-native, then enter a versioned mapping whose geometry, units, signs, gauges, and projection errors are validated.
+The manifest freezes release membership, integrity, physical-case grouping, split assignment, operator-view definition, grid compatibility, and preprocessing. All realizations and all target times from one physical case remain in one partition. One trajectory can yield many pairs but still counts as one physical trajectory.
 
-Module~4 receives this frozen release and constructs the fair data-only baseline. It may sample and standardize the accepted fields, but it cannot change the split, refit scales on held-out cases, erase case identity, or reinterpret the stored physics. Module~5 receives the identical labeled observations and adds physics constraints. That controlled inheritance is the reason Module~3 is part of the scientific method rather than merely storage engineering.
+The current initial-state family remains narrow: $\psi_0=\sin x\sin y$ and $U_0=A_0(\cos x-\cos y)$. Full-field representation does not create initial-condition diversity absent from the solver campaign. Broader operator-generalization claims require additional independently verified initial-field families.
+
+M3D-C1-shaped remains a limited interface claim: the workflow anticipates field arrays or mesh fields, parameters, time, diagnostics, provenance, and an adapter. Genuine M3D-C1 exports must remain source-native until geometry, units, signs, gauges, interpolation, and projection are validated.
+
+Module~4 receives this frozen release for the data-only full-field operator baseline. Module~5 receives the same physical cases and labeled target pairs and adds reduced-MHD constraints using the preserved grid and transform metadata.
 
 \clearpage
 \appendix
@@ -1400,7 +1291,9 @@ Path or attribute & Type & Shape & Meaning \\
 \code{@source\_kind} & UTF-8 & scalar & \code{synthetic\_reduced\_mhd} \\
 \code{@physical\_case\_id} & UTF-8 & scalar & Physics-equivalence group \\
 \code{@case\_id} & UTF-8 & scalar & Unique numerical realization \\
+\code{@initial\_state\_id} & UTF-8 & scalar & Canonical initial-field fingerprint \\
 \code{@axis\_order} & UTF-8 & scalar & Literal \code{t,x,y} \\
+\code{@learning\_interface} & UTF-8 & scalar & \code{full\_field\_operator\_v1} \\
 \dataset{coordinates/x} & float64 & $[N_x]$ & Half-open periodic $x$ grid \\
 \dataset{coordinates/y} & float64 & $[N_y]$ & Half-open periodic $y$ grid \\
 \dataset{coordinates/t} & float64 & $[N_t]$ & Explicit saved times \\
@@ -1432,7 +1325,7 @@ The example below is explanatory. The machine implementation is validated agains
 \begin{verbatim}
 {
   "schema_name": "pinn_m3dc1.dataset_manifest",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "dataset_id": "island-coalescence-synthetic-v1",
   "release_version": "1.0.0",
   "case_schema_requirement": ">=1.0.0,<2.0.0",
@@ -1447,6 +1340,7 @@ The example below is explanatory. The machine implementation is validated agains
       "sha256": "<64 lowercase hexadecimal characters>",
       "physical_case_id": "syn-p-8f3a10c64e9b",
       "case_id": "syn-r-54b3027976ad",
+      "initial_state_id": "syn-i-2c91f0ea51b7",
       "parameters": {"eta": 0.001, "nu": 0.001, "A0": 0.1},
       "split": "train",
       "acceptance_status": "accepted"
@@ -1460,10 +1354,22 @@ The example below is explanatory. The machine implementation is validated agains
     "test_interpolation": [],
     "test_extrapolation": []
   },
+  "task_specification": {
+    "task_kind": "full_field_solution_operator",
+    "map": "(psi0,U0,eta,nu,t)->(psi_t,U_t)",
+    "split_unit": "physical_case_id"
+  },
+  "operator_view": {
+    "view_version": "full_field_operator_v1",
+    "input_field_channels": ["psi0", "U0"],
+    "scalar_context": ["eta", "nu", "t"],
+    "target_channels": ["psi", "U"],
+    "grid_policy": "common_production_grid",
+    "pair_record_path": "views/full_field_operator_v1_pairs.json"
+  },
   "preprocessing": {
     "fit_partition": "train",
-    "view_version": "coordinate_mlp_v1",
-    "record_path": "preprocessing/coordinate_mlp_v1.json"
+    "record_path": "preprocessing/full_field_operator_v1.json"
   }
 }
 \end{verbatim}
@@ -1519,9 +1425,9 @@ Move files while preserving relative manifest structure & New packaged release o
   \item Every accepted release member has exactly one split assignment.
   \item Interpolation and extrapolation test labels are reproducible.
   \item Preprocessing dependencies are a subset of training case identifiers.
-  \item Observation indices are valid and reproduce identical selections.
-  \item Python and MATLAB readers agree on sentinel and production logical arrays.
-  \item Dataset, split, preprocessing, and observation manifests have independent digests.
+  \item Operator-pair indices are valid, inherit the parent split, and reproduce identical target times.
+  \item $t=0$ identity and pack/unpack recovery pass; Python and MATLAB readers agree on sentinel, production arrays, and tensor channels.
+  \item Dataset, split, operator-view, pair, and preprocessing manifests have independent digests.
   \item Release documentation states the claim boundary and known limitations.
 \end{enumerate}
 
@@ -1548,9 +1454,9 @@ $J$ & Current variable $-\Lap\psi$ & stored/checkable \\
 $\omega$ & Vorticity $+\Lap U$ & stored/checkable \\
 $\eta$ & Magnetic diffusivity & case parameter \\
 $\nu$ & Kinematic viscosity & case parameter \\
-$A_0$ & Initial flow perturbation amplitude & case parameter \\
+$A_0$ & Initial flow perturbation amplitude & case metadata; encoded in $U_0$ \\
 $\Psi_{\rm eq}$ & Equilibrium flux amplitude & stored parameter \\
-$\vect\mu$ & Parameter vector $(\eta,\nu,A_0)$ & physical-case input \\
+$\vect\mu$ & Physical-case parameter vector $(\eta,\nu,A_0)$ & solver/case descriptor \\
 $\mathcal D$ & Dataset release object & cases plus contracts \\
 $\mathcal P_{\rm tr}$ & Training physical-case set & split \\
 $\mathcal P_{\rm va}$ & Validation physical-case set & split \\
@@ -1558,8 +1464,9 @@ $\mathcal P_{\rm ti}$ & Interpolation-test physical-case set & split \\
 $\mathcal P_{\rm te}$ & Extrapolation-test physical-case set & split \\
 $m_q,s_q$ & Training-only location and scale for $q$ & preprocessing \\
 $\widetilde q$ & Neural transformed value & derived view \\
-$\ell$ & Canonical zero-based flattened index & integer \\
+$X_{c,n},Y_{c,n}$ & Full-field operator input and target & derived learning pair \\
 $\tau_U$ & Gauge tolerance & versioned criterion \\
+$\tau_{\rm IC}$ & Initial-field consistency tolerance & versioned criterion \\
 \bottomrule
 \end{longtable}
 \normalsize
@@ -1592,7 +1499,10 @@ M3D-C1 & Extended-MHD simulation framework based on high-order $C^1$ finite elem
 MHD & Magnetohydrodynamics \\
 Migration & Versioned conversion from one schema to another \\
 Normalization & Physical nondimensionalization; neural transforms use the separate term preprocessing \\
-Observation set & Immutable selected indices used for one labeled-data budget \\
+Neural operator & Learned map whose input or output is a complete function or discretized field \\
+Operator example & Complete initial-state/context input paired with one complete target state \\
+Operator view & Versioned rule deriving field tensors and context from canonical trajectories \\
+Pair manifest & Parent-case and target-time index for operator examples; bulk arrays stay in HDF5 \\
 PINN & Physics-informed neural network \\
 Provenance & Recorded production and ancestry history of an artifact \\
 Realization & One numerical solution of a physical case under specified numerical settings \\
@@ -1601,6 +1511,7 @@ Schema & Versioned rules for required names, types, shapes, and meanings \\
 SHA-256 & Secure Hash Algorithm with a 256-bit digest, used here for integrity \\
 Split leakage & Held-out information entering training, design, or preprocessing \\
 UTF-8 & Unicode text encoding used by manifest and metadata strings \\
+Tensor channel & One semantically named $N_x\times N_y$ numerical array in a packed tensor \\
 View & Reproducible derived representation for a learning task \\
 \bottomrule
 \end{longtable}
@@ -1609,55 +1520,47 @@ View & Reproducible derived representation for a learning task \\
 \label{app:questions}
 
 \subsection*{Questions}
-
 \begin{enumerate}[label=\textbf{Q\arabic*.}]
-  \item Why is a field name a physical statement?
-  \item Why are both \code{physical\_case\_id} and \code{case\_id} required?
-  \item Why can a square grid hide an axis transposition?
-  \item Why are the canonical fields not standardized in place?
-  \item Why are $J$ and $\omega$ stored if they can be derived?
-  \item What is the difference between physical nondimensionalization and neural preprocessing?
-  \item Why does the time array remain authoritative even with a recorded save interval?
-  \item Why is the file checksum stored outside the HDF5 file?
-  \item Why must missing acceptance metadata fail closed?
-  \item Why is a random point split not an unseen-case test?
-  \item Why do refinement and parity realizations belong to the same split group?
-  \item When can a held-out parameter vector be called interpolation?
-  \item Why are test-fitted means a form of leakage?
-  \item Why must observation indices retain case and grid identity?
-  \item Why is a padded zero not necessarily a physical zero?
-  \item What is the difference between I/O round-trip parity and solver parity?
-  \item Which schema changes require a major version increment?
-  \item Why does a matching checksum not prove correct physics?
-  \item What does M3D-C1-shaped mean in this project?
-  \item Why must a genuine M3D-C1 export remain source-native before adaptation?
-  \item What additional evidence is required for an M3D-C1 surrogate claim?
+  \item Why is a field name and axis order a physical statement?
+  \item Why are \code{physical\_case\_id}, \code{case\_id}, and \code{initial\_state\_id} distinct?
+  \item What is one supervised example in the revised Module~3 contract?
+  \item Why can one trajectory produce many operator pairs without becoming many independent cases?
+  \item Why must physical-case splitting occur before target-time pair extraction?
+  \item Why are canonical fields not standardized in place?
+  \item Why are rendered contour images forbidden as canonical neural inputs?
+  \item Why does the operator not need $A_0$ as a duplicate primary input in version~1?
+  \item Why must $A_0$ still be stored as metadata?
+  \item What is the version-1 full-field operator map?
+  \item Why is a common production grid useful for the first operator baseline?
+  \item Why is image-style resizing unacceptable for field tensors?
+  \item Why are test-fitted field scales leakage?
+  \item What does the $t=0$ identity test detect?
+  \item What is the difference between HDF5 round-trip parity and tensor-packing parity?
+  \item Why does full-field input not yet prove generalization to arbitrary initial conditions?
+  \item What does M3D-C1-shaped mean after the redesign?
+  \item What additional evidence is required for an M3D-C1 operator-surrogate claim?
 \end{enumerate}
 
 \subsection*{Answer sketches}
-
 \begin{enumerate}[label=\textbf{A\arabic*.}]
-  \item The name selects a definition, sign, normalization, gauge, and relationship to other fields; numbers alone do not.
-  \item One groups scientifically equivalent problems for leakage control; the other identifies a particular numerical artifact.
-  \item Exchanging equal-length axes preserves shape, and symmetry can preserve visual appearance.
-  \item Standardization is training-release dependent and can be regenerated; overwriting destroys the reference and complicates physics derivatives.
-  \item They permit derivative-sensitive evaluation, stale-field detection, and independent consistency audits.
-  \item The first defines the dimensionless PDE; the second conditions numerical optimization and must be inverted.
-  \item Adaptive or event-aligned output may not be uniform, and explicit coordinates prevent reconstruction ambiguity.
-  \item A closed file cannot contain the digest of its own final bytes without changing those bytes.
-  \item Eligibility requires affirmative evidence; absence cannot be interpreted as success.
-  \item It places correlated points from the same parameter trajectory in both training and test.
-  \item They solve the same physical initial-value problem and would otherwise create near-duplicate leakage.
-  \item Under the primary rule, when it lies inside the convex hull of training parameter vectors; axis-wise labels supplement this.
-  \item They use target-distribution information from a supposedly untouched case.
-  \item Full fields, case-balanced losses, and exact audit require reversible mapping to parent arrays.
-  \item Padding is a tensor-shape device and must be masked; zero may be a valid field value.
-  \item Round-trip parity checks serialization; solver parity compares independently computed numerical solutions.
-  \item Changes to required names, axes, dtypes, signs, units, shapes, or physical meanings.
-  \item Integrity says bytes are unchanged, not that the original interpretation was correct.
-  \item The workflow has an export-like field/coordinate/parameter/provenance interface while using synthetic reduced-MHD data.
-  \item The original mesh, units, names, and metadata are needed to validate any later translation and measure information loss.
-  \item Genuine independent exports, a validated adapter, known equations and closures, held-out M3D-C1 cases, and renewed scoring.
+  \item Names and axes select definitions, signs, coordinates, gauge, normalization, and spatial registration.
+  \item They identify a physics-equivalence group, one numerical artifact, and one canonical initial field state.
+  \item A complete pair $(\psi_0,U_0,\eta,\nu,t_n)\mapsto(\psi_n,U_n)$ built from whole numerical arrays.
+  \item All targets share the same initial state and dynamical history, so they are correlated observations of one trajectory.
+  \item Otherwise one time from a trajectory can enter training while another time from the same trajectory appears in test.
+  \item Standardization is training-release dependent and reversible; overwriting destroys the accepted reference.
+  \item Rendering quantizes or transforms values and introduces presentation-dependent color mappings.
+  \item $U_0=A_0(\cos x-\cos y)$ already encodes the amplitude point by point.
+  \item It defines the generating case, supports audits, and enables an initial-condition consistency check.
+  \item $(\psi_0,U_0,\eta,\nu,t)\mapsto(\psi_t,U_t)$ on the complete accepted grid.
+  \item It enables lossless tensor batching without adding an interpolation problem to the first experiment.
+  \item Resizing changes the represented numerical function and its derivatives.
+  \item They use held-out target-distribution information to define the training representation.
+  \item It catches wrong target indexing, case mismatch, axis transposition, channel swap, and preprocessing errors.
+  \item HDF5 parity checks serialization; tensor parity checks the derived representation actually supplied to the learner.
+  \item The solver campaign varies mostly the amplitude of one fixed flow shape and uses one fixed magnetic shape.
+  \item The workflow is field- and metadata-oriented with an explicit adapter boundary; it still uses synthetic reduced-MHD data.
+  \item Genuine independent M3D-C1 exports, a validated adapter, known field definitions and closures, held-out M3D-C1 cases, and renewed operator scoring.
 \end{enumerate}
 
 \section{References and standards}
