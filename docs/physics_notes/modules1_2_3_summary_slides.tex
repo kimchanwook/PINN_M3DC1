@@ -1,0 +1,390 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{booktabs,array}
+\usepackage{xcolor}
+
+\definecolor{TitleBlue}{HTML}{17365D}
+\definecolor{AccentTeal}{HTML}{117C88}
+\definecolor{BodyGray}{HTML}{2F3A45}
+\definecolor{SoftGray}{HTML}{F2F5F7}
+\definecolor{SoftBlue}{HTML}{EAF1F8}
+\definecolor{SoftTeal}{HTML}{E8F5F5}
+\definecolor{WarningRed}{HTML}{9B2C2C}
+
+\setbeamercolor{normal text}{fg=BodyGray,bg=white}
+\setbeamercolor{frametitle}{fg=TitleBlue,bg=white}
+\setbeamercolor{block title}{fg=white,bg=TitleBlue}
+\setbeamercolor{block body}{fg=BodyGray,bg=SoftBlue}
+\setbeamercolor{block title alerted}{fg=white,bg=WarningRed}
+\setbeamercolor{block body alerted}{fg=BodyGray,bg=SoftGray}
+\setbeamercolor{block title example}{fg=white,bg=AccentTeal}
+\setbeamercolor{block body example}{fg=BodyGray,bg=SoftTeal}
+
+% The compact title size is intentional: these are dense personal study slides.
+\setbeamerfont{normal text}{size=\fontsize{12.2}{14.6}\selectfont}
+\setbeamerfont{frametitle}{size=\fontsize{12.2}{14.6}\selectfont,series=\bfseries}
+\setbeamerfont{block title}{size=\fontsize{11.4}{13.5}\selectfont,series=\bfseries}
+\setbeamerfont{block body}{size=\fontsize{10.9}{13.0}\selectfont}
+\setbeamerfont{footline}{size=\fontsize{8.6}{10.0}\selectfont}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\color{AccentTeal}$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{AccentTeal}$\bullet$}
+\setlength{\leftmargini}{1.05em}
+\setlength{\leftmarginii}{1.0em}
+\setlength{\parskip}{0.03em}
+
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\avg}[1]{\left\langle #1\right\rangle}
+\newcommand{\Rpsi}{R_{\psi}}
+\newcommand{\Romega}{R_{\omega}}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\OmegaD}{\Omega=[0,2\pi)\times[0,2\pi)}
+\newcommand{\stateop}{(\psi_0,U_0,\eta,\nu,t)\mapsto(\psi_t,U_t)}
+\newcommand{\currentmodule}{Module 1}
+\newcommand{\moduleprogress}{1 of 4}
+\newcommand{\setmodule}[2]{%
+  \renewcommand{\currentmodule}{#1}%
+  \renewcommand{\moduleprogress}{#2}%
+}
+
+\setbeamertemplate{frametitle}{%
+  \vspace{0.06cm}
+  \usebeamerfont{frametitle}\insertframetitle\par
+  \vspace{-0.20cm}
+  {\color{AccentTeal}\rule{\textwidth}{0.55pt}}
+}
+
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=.48\paperwidth,ht=2.6ex,dp=1.05ex,leftskip=.45cm]{author in head/foot}%
+      \usebeamerfont{footline}\color{TitleBlue}\textbf{PINN\_M3DC1}\hspace{0.45em}|\hspace{0.45em}\currentmodule
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.52\paperwidth,ht=2.6ex,dp=1.05ex,rightskip=.45cm plus1fil]{date in head/foot}%
+      \usebeamerfont{footline}\color{BodyGray}\moduleprogress\hspace{0.8em}\textbullet\hspace{0.8em}Slide \insertframenumber\ of \inserttotalframenumber
+    \end{beamercolorbox}%
+  }
+}
+
+\setbeamersize{text margin left=0.60cm,text margin right=0.60cm}
+\AtBeginDocument{%
+  \setlength{\abovedisplayskip}{0.22em}%
+  \setlength{\belowdisplayskip}{0.22em}%
+  \setlength{\abovedisplayshortskip}{0.16em}%
+  \setlength{\belowdisplayshortskip}{0.16em}%
+}
+
+\begin{document}
+
+% --------------------------------------------------------------------------
+% Module 1: four slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 1}{1 of 4}
+\begin{frame}[t]{Module 1: reduced resistive-MHD state}
+\vspace{-0.15em}
+The project physics is a strict two-dimensional, incompressible, doubly periodic reduced-MHD model:
+\[
+\OmegaD,\qquad t\in[0,T],\qquad \partial_z=0.
+\]
+The primary scalar fields are magnetic flux and stream function,
+\[
+\vect q(x,y,t)=(\psi,U),
+\]
+with derived quantities
+\[
+\vect B_\perp=\nabla\psi\times\widehat{\vect z}=(\psi_y,-\psi_x),\qquad
+\vect v_\perp=\widehat{\vect z}\times\nabla U=(-U_y,U_x),
+\]
+\[
+J=-\nabla^2\psi,\qquad \omega=\nabla^2U,
+\qquad \nabla\cdot\vect B_\perp=\nabla\cdot\vect v_\perp=0.
+\]
+The surrogate receives a complete initial field pair and predicts the later field pair.
+\end{frame}
+
+\setmodule{Module 1}{2 of 4}
+\begin{frame}[t]{Module 1: brackets and governing equations}
+\vspace{-0.15em}
+The two-dimensional bracket is
+\[
+\bracket{f}{g}=f_xg_y-f_yg_x,
+\qquad
+\vect v_\perp\cdot\nabla f=\bracket{U}{f}.
+\]
+Thus nonlinear advection appears compactly as a Poisson bracket. The frozen sign convention is
+\[
+\boxed{\psi_t+\bracket{U}{\psi}=\eta\nabla^2\psi,}
+\]
+\[
+\boxed{\omega_t+\bracket{U}{\omega}=\bracket{J}{\psi}+\nu\nabla^2\omega,}
+\qquad
+J=-\nabla^2\psi,
+\quad
+\omega=\nabla^2U.
+\]
+Interpretation:
+\[
+\bracket{U}{\psi}:\text{ flux advection},\quad
+\eta\nabla^2\psi:\text{ resistive diffusion},
+\]
+\[
+\bracket{J}{\psi}:\text{ magnetic forcing},\quad
+\nu\nabla^2\omega:\text{ viscous vorticity diffusion}.
+\]
+\end{frame}
+
+\setmodule{Module 1}{3 of 4}
+\begin{frame}[t]{Module 1: scales, gauges, and energy}
+\vspace{-0.15em}
+Alfven normalization gives
+\[
+V_A=\frac{B_0}{\sqrt{\mu_0\rho_0}},
+\qquad
+t_A=\frac{L_0}{V_A},
+\qquad
+\eta=\frac{\eta_m}{L_0V_A},
+\qquad
+\nu=\frac{\nu_d}{L_0V_A}.
+\]
+Dimensionless control numbers are
+\[
+S=\eta^{-1},\qquad \mathrm{Re}=\nu^{-1},\qquad \mathrm{Pm}=\frac{\nu}{\eta}.
+\]
+Periodic gauges and means:
+\[
+\avg{U}(t)=0,
+\qquad
+\frac{\mathrm d}{\mathrm dt}\avg{\psi}=0,
+\qquad
+\avg J=\avg\omega=0.
+\]
+The verification energy law is
+\[
+\boxed{\frac{\mathrm d}{\mathrm dt}\frac12\int_\Omega(|\nabla\psi|^2+|\nabla U|^2)\dd A
+=-\eta\int_\Omega J^2\dd A-\nu\int_\Omega\omega^2\dd A\le0.}
+\]
+\end{frame}
+
+\setmodule{Module 1}{4 of 4}
+\begin{frame}[t]{Module 1: prediction task and claim boundary}
+\vspace{-0.15em}
+The learned map is
+\[
+\boxed{\stateop.}
+\]
+The inputs have direct physical roles:
+\[
+(\psi_0,U_0):\text{ initial magnetic and flow state},
+\qquad
+(\eta,\nu):\text{ diffusion strengths},
+\]
+\[
+t:\text{ requested prediction time}.
+\]
+The outputs are complete numerical fields:
+\[
+\widehat\psi(x,y,t),\qquad \widehat U(x,y,t).
+\]
+The physical model does not change when training changes from data-only to physics-informed.
+
+\begin{alertblock}{Claim boundary}
+The project demonstrates a surrogate workflow for an independent two-field reduced-MHD model. It does not yet predict genuine M3D-C1 output.
+\end{alertblock}
+\end{frame}
+
+% --------------------------------------------------------------------------
+% Module 2: two slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 2}{1 of 2}
+\begin{frame}[t]{Module 2: one simulation creates one data case}
+\vspace{-0.15em}
+Choose the physical settings and initial fields:
+\[
+(\psi_0,U_0,\eta,\nu).
+\]
+The solver then uses the reduced-MHD equations from Module 1 to calculate
+\[
+(\psi,U,J,\omega)\quad\text{at each saved time.}
+\]
+One case file stores
+\[
+x, y, t, \psi, U, J, \omega, \eta, \nu, A_0,
+\]
+plus the initial conditions and solver settings.
+
+\begin{block}{Core idea}
+The saved numerical arrays are the training data. Plots are only pictures used to inspect those arrays.
+\end{block}
+\end{frame}
+
+\setmodule{Module 2}{2 of 2}
+\begin{frame}[t]{Module 2: keep complete simulations together}
+\vspace{-0.15em}
+Each saved time can become one learning example:
+\[
+\boxed{
+(\psi_0,U_0,\eta,\nu,t_k)
+\longrightarrow
+(\psi_k,U_k).
+}
+\]
+All times from one simulation stay together in training, validation, or testing. This prevents the same physical evolution from appearing on both sides of the comparison.
+
+Before use, each case must pass simple-solution, grid, time-step, periodic-boundary, energy, and save/reload checks.
+
+\begin{alertblock}{Claim boundary}
+These are reduced-MHD simulation data, not M3D-C1 results.
+\end{alertblock}
+\end{frame}
+
+% --------------------------------------------------------------------------
+% Module 3: five slides
+% --------------------------------------------------------------------------
+
+\setmodule{Module 3}{1 of 5}
+\begin{frame}[t]{Module 3: one model contains the baseline and physics-informed versions}
+\vspace{-0.15em}
+The neural network predicts
+\[
+\mathcal G_\theta:(\psi_0,U_0,\eta,\nu,t)
+\longmapsto(\widehat\psi,\widehat U).
+\]
+The data loss compares these predictions with Module 2:
+\[
+\boxed{
+\mathcal L_{\rm data}
+=\avg{(\widehat\psi-\psi)^2}
++\avg{(\widehat U-U)^2}.
+}
+\]
+The baseline is simply
+\[
+\mathcal L_{\rm total}=w_d\mathcal L_{\rm data}.
+\]
+
+\begin{block}{Why the separate baseline module disappeared}
+The physics-informed version uses the same inputs, outputs, and model. It only turns on additional loss terms.
+\end{block}
+\end{frame}
+
+\setmodule{Module 3}{2 of 5}
+\begin{frame}[t]{Module 3: magnetic-flux residual}
+\vspace{-0.15em}
+Move the predicted magnetic-flux equation to the left:
+\[
+\boxed{
+\Rpsi
+=\widehat\psi_t
++\bracket{\widehat U}{\widehat\psi}
+-\eta\nabla^2\widehat\psi.
+}
+\]
+The target is $\Rpsi=0$ at every location and time:
+\[
+\boxed{
+\mathcal L_{{\rm PDE},\psi}
+=\avg{\left(\frac{\Rpsi}{S_\psi}\right)^2}.
+}
+\]
+Physical balance:
+\[
+\underbrace{\widehat\psi_t}_{\text{time change}}
++\underbrace{\bracket{\widehat U}{\widehat\psi}}_{\text{flow transports flux}}
+-\underbrace{\eta\nabla^2\widehat\psi}_{\text{resistive diffusion}}
+=0.
+\]
+This term asks for more than a similar-looking field: its time change, advection, and diffusion must balance.
+\end{frame}
+
+\setmodule{Module 3}{3 of 5}
+\begin{frame}[t]{Module 3: vorticity residual}
+\vspace{-0.15em}
+First derive current and vorticity from the predicted fields:
+\[
+\widehat J=-\nabla^2\widehat\psi,
+\qquad
+\widehat\omega=\nabla^2\widehat U.
+\]
+Then form
+\[
+\boxed{
+\Romega
+=\widehat\omega_t
++\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}
+-\nu\nabla^2\widehat\omega.
+}
+\]
+and penalize
+\[
+\boxed{
+\mathcal L_{{\rm PDE},\omega}
+=\avg{\left(\frac{\Romega}{S_\omega}\right)^2}.
+}
+\]
+This enforces balance among vorticity change, flow advection, magnetic forcing, and viscous diffusion. The two PDE losses remain separate so that one equation cannot hide the other.
+\end{frame}
+
+\setmodule{Module 3}{4 of 5}
+\begin{frame}[t]{Module 3: initial, boundary, and gauge constraints}
+\vspace{-0.15em}
+The initial state selects the correct solution of the PDE:
+\[
+\mathcal L_{\rm IC}
+=\avg{(\widehat\psi(0)-\psi_0)^2}
++\avg{(\widehat U(0)-U_0)^2}.
+\]
+The stream-function gauge removes an arbitrary constant:
+\[
+\mathcal L_{\rm gauge}=\avg{\widehat U}^{,2}.
+\]
+For a periodic Fourier representation,
+\[
+\boxed{\mathcal L_{\rm BC}=0}
+\]
+because periodicity is built in. Two other constraints are also automatic:
+\[
+\nabla\cdot\widehat{\vect B}_\perp=0,
+\qquad
+\nabla\cdot\widehat{\vect v}_\perp=0,
+\]
+because the fields are constructed from $\widehat\psi$ and $\widehat U$.
+\end{frame}
+
+\setmodule{Module 3}{5 of 5}
+\begin{frame}[t]{Module 3: final proof-of-concept objective}
+\vspace{-0.15em}
+The recommended first physics-informed loss is
+\[
+\boxed{
+\mathcal L_{\rm total}
+=w_d\mathcal L_{\rm data}
++w_\psi\mathcal L_{{\rm PDE},\psi}
++w_\omega\mathcal L_{{\rm PDE},\omega}
++w_0\mathcal L_{\rm IC}
++w_g\mathcal L_{\rm gauge}.
+}
+\]
+Optional tests can add
+\[
+\mathcal L_{\rm mean},\qquad
+\mathcal L_{\rm energy},\qquad
+\mathcal L_{J,\omega}.
+\]
+The weights prevent one numerically large term from overwhelming the others.
+
+\begin{exampleblock}{What this presentation establishes}
+It shows exactly how simulation agreement, the two MHD equations, and known conditions are combined to construct a physics-informed surrogate. Accuracy or speed improvements require later trained results.
+\end{exampleblock}
+\end{frame}
+
+\end{document}

@@ -1,0 +1,197 @@
+\documentclass[11pt]{article}
+
+\input{../shared/project_style.tex}
+
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PINN\_M3DC1}
+\rhead{Module 2 Notes}
+\cfoot{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \lhead{PINN\_M3DC1}%
+  \rhead{Module 2 Notes}%
+  \cfoot{\thepage}%
+}
+
+\begin{document}
+
+\DocTitle{Module 2}{Generate and Save MHD Simulation Data}{A short guide to creating trustworthy examples for the neural network}
+
+\begin{overviewbox}
+\textbf{Module 2 has one job:} run the reduced-MHD equations from Module 1 and save the numerical fields in a form that the neural network can use later.
+\end{overviewbox}
+
+\ProjectTOC
+
+\section{The whole module in one picture}
+
+For each simulation, we choose the resistivity $\eta$, viscosity $\nu$, and initial fields. The solver then calculates how the fields change with time and saves the result.
+
+\begin{center}
+\fbox{choose one case}
+$\;\longrightarrow\;$
+\fbox{solve the MHD equations}
+$\;\longrightarrow\;$
+\fbox{check the answer}
+$\;\longrightarrow\;$
+\fbox{save the arrays}
+\end{center}
+
+The saved arrays are the training data. A contour plot may help us look at a result, but the plot itself is not training data.
+
+\section{What one simulation contains}
+
+The solver uses the two equations established in Module 1:
+\begin{align}
+\frac{\partial \psi}{\partial t}+\bracket{U}{\psi}
+  &=\eta\nabla^2\psi,\\
+\frac{\partial \omega}{\partial t}+\bracket{U}{\omega}
+  &=\bracket{J}{\psi}+\nu\nabla^2\omega,
+\end{align}
+with
+\begin{equation}
+J=-\nabla^2\psi,
+\qquad
+\omega=\nabla^2U.
+\end{equation}
+
+The bracket is simply the two-dimensional advection term:
+\begin{equation}
+\bracket{f}{g}=f_xg_y-f_yg_x.
+\end{equation}
+
+The version-1 example begins with
+\begin{equation}
+\psi_0(x,y)=\sin x\sin y,
+\qquad
+U_0(x,y)=A_0(\cos x-\cos y).
+\end{equation}
+
+Changing $\eta$, $\nu$, or $A_0$ creates a different simulation case. The initial shape is fixed in version 1; only its flow amplitude changes through $A_0$.
+
+\section{How the solver works}
+
+The domain is periodic in both $x$ and $y$. The program represents each field with Fourier modes, calculates spatial derivatives, and advances the solution through small time steps.
+
+The exact implementation may use Fourier transforms and a Runge--Kutta time step. Those details matter to the code, but the physical idea is simple:
+
+\begin{enumerate}[leftmargin=2em]
+\item Start with $\psi_0$ and $U_0$.
+\item Calculate $J$ and $\omega$ from spatial derivatives.
+\item Use the two MHD equations to calculate the time change.
+\item Move forward by one small time step.
+\item Repeat until the final time.
+\end{enumerate}
+
+Very short wavelengths that cannot be represented reliably are removed before nonlinear terms are used. This prevents unresolved numerical patterns from appearing as false physics.
+
+\section{What is saved}
+
+One case file stores the numerical values needed to reproduce and interpret the simulation:
+
+\begin{center}
+\begin{tabularx}{0.94\textwidth}{>{\bfseries}p{0.23\textwidth} X}
+\toprule
+Saved item & Meaning\\
+\midrule
+$x$, $y$, $t$ & The grid and saved times\\
+$\psi$, $U$ & Magnetic-flux and flow fields\\
+$J$, $\omega$ & Current and vorticity calculated from $\psi$ and $U$\\
+$\eta$, $\nu$, $A_0$ & The physical settings for this case\\
+Initial conditions & The exact starting fields\\
+Solver settings & Grid size, time step, and numerical method\\
+Checks & Energy, peak current, and other useful histories\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The preferred file type is HDF5. In plain language, HDF5 is one organized file that can hold large numerical arrays together with their labels and settings.
+
+\begin{notebox}
+Saving the raw arrays preserves the physics. Saving only pictures would lose numerical precision, coordinates, units, and most of the information needed for training.
+\end{notebox}
+
+\section{How one simulation becomes learning examples}
+
+The neural network receives the initial fields, the two transport coefficients, and a requested time. It predicts the fields at that time:
+\begin{equation}
+\boxed{
+(\psi_0,U_0,\eta,\nu,t)
+\longrightarrow
+(\psi(t),U(t)).
+}
+\end{equation}
+
+A single simulation can provide examples at many saved times. For example,
+\begin{equation}
+(\psi_0,U_0,\eta,\nu,t_k)
+\longrightarrow
+(\psi_k,U_k).
+\end{equation}
+
+These examples are closely related because they came from the same simulation. They must therefore remain in the same data group.
+
+\section{Keep complete simulations together}
+
+The cases are divided into three groups:
+
+\begin{itemize}[leftmargin=2em]
+\item \textbf{Training cases} teach the network.
+\item \textbf{Validation cases} help choose training settings.
+\item \textbf{Test cases} measure performance only after training is finished.
+\end{itemize}
+
+All saved times from one simulation stay in one group. If early times from a case were used for training and later times from that same case were used for testing, the test would be too easy. The network would already have seen almost the same physical evolution.
+
+Only the training cases are used to calculate any scaling applied to the data. The same saved scaling is then applied to validation and test cases.
+
+\section{Checks before the data are accepted}
+
+A smooth-looking animation is not enough. Before a simulation is used for training, the following checks should pass:
+
+\begin{enumerate}[leftmargin=2em]
+\item \textbf{Known simple solution:} a case with a known decay rate is reproduced.
+\item \textbf{Grid check:} using a finer spatial grid does not materially change the answer.
+\item \textbf{Time-step check:} using a smaller time step does not materially change the answer.
+\item \textbf{Periodic boundaries:} opposite edges match as required.
+\item \textbf{Energy behavior:} resistivity and viscosity remove energy rather than create it.
+\item \textbf{File check:} saving and reopening the case does not change the arrays or swap the $x$ and $y$ directions.
+\end{enumerate}
+
+For this model, the energy should obey
+\begin{equation}
+\frac{\mathrm d E}{\mathrm d t}
+=-\eta\int J^2\,\mathrm dA
+-\nu\int \omega^2\,\mathrm dA
+\le 0.
+\end{equation}
+
+This is a useful test because a sign error or unstable calculation can cause the numerical energy to increase when it should decrease.
+
+\section{What Module 2 does not claim}
+
+Module 2 creates data from a small, two-dimensional reduced-MHD model. It does not run M3D-C1 and it does not show that the saved cases reproduce a real experiment.
+
+The file layout is designed so that genuine M3D-C1 output could be connected later. That later step would still require explicit checks of geometry, units, field definitions, boundary conditions, and physical models.
+
+\section{Completion checklist}
+
+Module 2 is complete when:
+
+\begin{itemize}[leftmargin=2em]
+\item one command runs a case and writes the full numerical arrays;
+\item the solver passes the simple-solution, grid, time-step, boundary, and energy checks;
+\item the saved file can be reopened without changing the data;
+\item every case has a unique identifier and complete settings;
+\item training, validation, and test groups contain different complete simulations; and
+\item the project clearly states that these are reduced-MHD simulations, not M3D-C1 results.
+\end{itemize}
+
+\begin{overviewbox}
+\textbf{Core idea:} Module 2 produces trustworthy MHD examples. Later modules compare a neural-network prediction with the saved answer and ask whether enforcing the MHD equations improves that prediction.
+\end{overviewbox}
+
+\end{document}

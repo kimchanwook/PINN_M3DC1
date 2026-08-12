@@ -1,0 +1,431 @@
+\documentclass[11pt]{article}
+
+\input{../shared/project_style.tex}
+
+\newcommand{\bracket}[2]{\left[#1,#2\right]}
+\newcommand{\avg}[1]{\left\langle #1\right\rangle}
+\newcommand{\Rpsi}{R_{\psi}}
+\newcommand{\Romega}{R_{\omega}}
+\newcommand{\Ldata}{\mathcal L_{\mathrm{data}}}
+\newcommand{\Lpdepsi}{\mathcal L_{\mathrm{PDE},\psi}}
+\newcommand{\Lpdeomega}{\mathcal L_{\mathrm{PDE},\omega}}
+\newcommand{\Lic}{\mathcal L_{\mathrm{IC}}}
+\newcommand{\Lbc}{\mathcal L_{\mathrm{BC}}}
+\newcommand{\Lgauge}{\mathcal L_{\mathrm{gauge}}}
+\newcommand{\Lmean}{\mathcal L_{\mathrm{mean}}}
+\newcommand{\Lenergy}{\mathcal L_{\mathrm{energy}}}
+\newcommand{\Lderived}{\mathcal L_{J,\omega}}
+\newcommand{\Ltotal}{\mathcal L_{\mathrm{total}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PINN\_M3DC1}
+\rhead{Module 3 Notes}
+\cfoot{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \lhead{PINN\_M3DC1}%
+  \rhead{Module 3 Notes}%
+  \cfoot{\thepage}%
+}
+
+\begin{document}
+
+\DocTitle{Module 3}{Construct the Physics-Informed Surrogate}{The data-only baseline and the physics constraints in one model}
+
+\begin{overviewbox}
+\textbf{Module 3 has one central idea:} train one neural network to predict the MHD fields. Training with only simulation error gives the data-only baseline. Adding penalties for violating the MHD equations and known conditions makes the same model physics-informed.
+\end{overviewbox}
+
+\ProjectTOC
+
+\section{The complete idea in one equation}
+
+The neural network receives the initial fields, resistivity, viscosity, and a requested time. It predicts the magnetic-flux and stream-function fields at that time:
+\begin{equation}
+\boxed{
+(\psi_0,U_0,\eta,\nu,t)
+\longrightarrow
+(\widehat\psi(x,y,t),\widehat U(x,y,t)).
+}
+\end{equation}
+
+The hats mean neural-network predictions. The corresponding simulation fields, generated in Module 2, are written without hats.
+
+The network architecture is not the main physics point. It only needs to accept complete initial fields, return complete predicted fields, and allow the derivatives needed below. A Fourier neural operator is one suitable choice for the periodic grid, but its layer-by-layer construction is an implementation detail.
+
+The training objective is a weighted sum:
+\begin{equation}
+\boxed{
+\Ltotal
+=w_d\Ldata
++w_{\psi}\Lpdepsi
++w_{\omega}\Lpdeomega
++w_0\Lic
++w_g\Lgauge
++\text{optional terms}.
+}
+\label{eq:total_preview}
+\end{equation}
+
+Each loss term answers a different question. The rest of this module explains those questions.
+
+\section{The data-only baseline is part of the same module}
+
+For every simulation example, compare the predicted fields with the saved fields:
+\begin{equation}
+\boxed{
+\Ldata
+=\avg{(\widehat\psi-\psi)^2}
++\avg{(\widehat U-U)^2}.
+}
+\label{eq:data_loss}
+\end{equation}
+Here, $\avg{\cdot}$ means an average over the grid points, selected times, and training cases. In practice, the two fields should be scaled so that the numerically larger field does not dominate the other one.
+
+This term teaches the direct lesson contained in the simulation data:
+\begin{quote}
+For this initial state and these physical parameters, the correct fields at time $t$ are $\psi$ and $U$.
+\end{quote}
+
+If all physics weights are set to zero,
+\begin{equation}
+w_{\psi}=w_{\omega}=w_0=w_g=0,
+\end{equation}
+then
+\begin{equation}
+\Ltotal=w_d\Ldata.
+\end{equation}
+This is the data-only baseline. It does not need its own module or a different neural network.
+
+\begin{notebox}
+\textbf{Why keep the baseline?} It shows what the simulation data alone can teach. The physics-informed version is meaningful only as a comparison with the same prediction problem trained without the physics terms.
+\end{notebox}
+
+\section{A residual measures violation of an equation}
+
+Write a governing equation with every term moved to the left. The expression on the left is called its \textbf{residual}. For an exact solution, the residual is zero.
+
+For a simple example,
+\begin{equation}
+u_t-Du_{xx}=0
+\end{equation}
+has residual
+\begin{equation}
+R=u_t-Du_{xx}.
+\end{equation}
+If a predicted field gives $R\ne0$, it does not satisfy the equation at that location and time. Squaring and averaging $R$ produces a nonnegative penalty that training can reduce.
+
+The reduced-MHD model has two evolution equations, so it has two main residual fields: one for magnetic flux and one for vorticity.
+
+\section{Magnetic-flux residual}
+
+The magnetic-flux equation is
+\begin{equation}
+\psi_t+\bracket{U}{\psi}=\eta\nabla^2\psi,
+\qquad
+\bracket{f}{g}=f_xg_y-f_yg_x.
+\end{equation}
+
+Insert the predicted fields and move every term to the left:
+\begin{equation}
+\boxed{
+\Rpsi
+=\widehat\psi_t
++\bracket{\widehat U}{\widehat\psi}
+-\eta\nabla^2\widehat\psi.
+}
+\label{eq:rpsi}
+\end{equation}
+
+The three pieces have direct physical meanings:
+\begin{center}
+\begin{tabularx}{0.94\textwidth}{>{\bfseries}p{0.28\textwidth} X}
+\toprule
+Term & Meaning\\
+\midrule
+$\widehat\psi_t$ & The predicted local change of magnetic flux with time\\
+$\bracket{\widehat U}{\widehat\psi}$ & Transport of magnetic flux by the predicted plasma flow\\
+$-\eta\nabla^2\widehat\psi$ & Resistive diffusion, moved to the left side of the equation\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The corresponding loss is
+\begin{equation}
+\boxed{
+\Lpdepsi=\avg{\left(\frac{\Rpsi}{S_{\psi}}\right)^2}.
+}
+\label{eq:lpdepsi}
+\end{equation}
+$S_{\psi}$ is a fixed scale used to keep this residual numerically comparable with the other losses. The physical target remains $\Rpsi=0$.
+
+This loss tells the network:
+\begin{quote}
+Do not merely resemble the saved flux field. Predict a flux field whose time change, advection, and resistive diffusion balance one another.
+\end{quote}
+
+\section{Vorticity residual}
+
+First calculate current and vorticity from the predicted fields:
+\begin{equation}
+\boxed{
+\widehat J=-\nabla^2\widehat\psi,
+\qquad
+\widehat\omega=\nabla^2\widehat U.
+}
+\label{eq:derived}
+\end{equation}
+
+The vorticity equation is
+\begin{equation}
+\omega_t+\bracket{U}{\omega}
+=\bracket{J}{\psi}+\nu\nabla^2\omega.
+\end{equation}
+Its predicted residual is
+\begin{equation}
+\boxed{
+\Romega
+=\widehat\omega_t
++\bracket{\widehat U}{\widehat\omega}
+-\bracket{\widehat J}{\widehat\psi}
+-\nu\nabla^2\widehat\omega.
+}
+\label{eq:romega}
+\end{equation}
+
+The four pieces mean:
+\begin{center}
+\begin{tabularx}{0.94\textwidth}{>{\bfseries}p{0.30\textwidth} X}
+\toprule
+Term & Meaning\\
+\midrule
+$\widehat\omega_t$ & The predicted local change of vorticity with time\\
+$\bracket{\widehat U}{\widehat\omega}$ & Transport of vorticity by the predicted flow\\
+$-\bracket{\widehat J}{\widehat\psi}$ & The Lorentz-force source, moved to the left side\\
+$-\nu\nabla^2\widehat\omega$ & Viscous diffusion of vorticity, moved to the left side\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The corresponding loss is
+\begin{equation}
+\boxed{
+\Lpdeomega=\avg{\left(\frac{\Romega}{S_{\omega}}\right)^2}.
+}
+\label{eq:lpdeomega}
+\end{equation}
+
+This loss tells the network:
+\begin{quote}
+Predict a flow whose vorticity changes consistently with advection, magnetic forcing, and viscosity.
+\end{quote}
+
+The two PDE losses should remain separate before they are weighted. Otherwise, the equation with the larger numerical residual can hide the other equation.
+
+\section{How the residuals are calculated}
+
+The network predicts complete fields on a periodic grid. The residuals require time and spatial derivatives.
+
+\begin{itemize}[leftmargin=2em]
+\item The time derivative is obtained by differentiating the predicted output with respect to the input time.
+\item Spatial derivatives are calculated from the predicted arrays with the same periodic Fourier derivative rules used by the Module 2 solver.
+\end{itemize}
+
+This gives $\widehat J$, $\widehat\omega$, $\Rpsi$, and $\Romega$ at every grid point. The loss uses the numerical arrays, not contour plots or images.
+
+The derivative calculation must remain connected to the training calculation. Otherwise, changing the neural-network weights would not change the residual penalty, and the equations could not teach the network.
+
+\section{Initial-condition loss}
+
+At $t=0$, the correct output is already known: it is the input state. Therefore,
+\begin{equation}
+\widehat\psi(x,y,0)=\psi_0(x,y),
+\qquad
+\widehat U(x,y,0)=U_0(x,y).
+\end{equation}
+
+A direct penalty is
+\begin{equation}
+\boxed{
+\Lic
+=\avg{(\widehat\psi(x,y,0)-\psi_0)^2}
++\avg{(\widehat U(x,y,0)-U_0)^2}.
+}
+\label{eq:lic}
+\end{equation}
+
+This constraint is especially important because a small PDE residual does not identify the correct physical trajectory by itself. Many different solutions can satisfy the same equations; the initial condition selects the one being modeled.
+
+\section{Boundary and gauge constraints}
+
+\subsection{Periodic boundaries}
+
+The physical domain is periodic in both directions. If the network output is represented directly as one periodic Fourier grid, periodicity is built into the representation. Then the boundary condition is a \textbf{hard constraint} and
+\begin{equation}
+\boxed{\Lbc=0.}
+\end{equation}
+
+If a nonperiodic network is used instead, opposite edges can be penalized explicitly. For example,
+\begin{align}
+\Lbc={}&\avg{\bigl(\widehat\psi(0,y,t)-\widehat\psi(L_x,y,t)\bigr)^2}\\
+&+\avg{\bigl(\widehat U(0,y,t)-\widehat U(L_x,y,t)\bigr)^2}\\
+&+\text{the corresponding two terms in the $y$ direction}.
+\end{align}
+
+\subsection{Stream-function gauge}
+
+Adding a spatial constant to $U$ does not change the velocity, because velocity depends on $\nabla U$. The project removes this ambiguity by requiring
+\begin{equation}
+\avg{U}=0.
+\end{equation}
+A soft penalty is
+\begin{equation}
+\boxed{
+\Lgauge=\avg{\widehat U}^{,2}.
+}
+\label{eq:lgauge}
+\end{equation}
+
+An even cleaner hard constraint is to subtract the predicted spatial mean from $\widehat U$ before using it. If that is done, $\Lgauge$ is unnecessary.
+
+\section{Constraints that are already satisfied by construction}
+
+Not every physical statement needs another loss term.
+
+\begin{center}
+\begin{tabularx}{0.94\textwidth}{>{\bfseries}p{0.29\textwidth} X}
+\toprule
+Physical statement & Why no separate penalty is needed\\
+\midrule
+$\nabla\cdot\bm B_\perp=0$ & $\bm B_\perp=\nabla\widehat\psi\times\widehat{\bm z}$ is divergence-free by construction\\
+$\nabla\cdot\bm v_\perp=0$ & $\bm v_\perp=\widehat{\bm z}\times\nabla\widehat U$ is divergence-free by construction\\
+$J=-\nabla^2\psi$ & $\widehat J$ is calculated from $\widehat\psi$ rather than predicted independently\\
+$\omega=\nabla^2U$ & $\widehat\omega$ is calculated from $\widehat U$ rather than predicted independently\\
+Periodic boundaries & They are exact when the output representation itself is periodic\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Building a condition into the variables is stronger and simpler than asking the optimizer to learn it through another numerical penalty.
+
+\section{Useful optional constraints}
+
+The following terms may be tested after the main losses work. They are optional because much of their information already follows from the PDE and the chosen variables.
+
+\subsection{Mean magnetic flux}
+
+On the periodic domain, the spatial mean of $\psi$ should remain equal to its initial value:
+\begin{equation}
+\boxed{
+\Lmean
+=\left(\avg{\widehat\psi(t)}-\avg{\psi_0}\right)^2.
+}
+\end{equation}
+This is a cheap global check, but it cannot replace the pointwise PDE residuals.
+
+\subsection{Energy balance}
+
+Define the predicted total energy
+\begin{equation}
+\widehat E(t)=\frac12\int_{\Omega}
+\left(|\nabla\widehat\psi|^2+|\nabla\widehat U|^2\right)\,\mathrm dA.
+\end{equation}
+The reduced model requires
+\begin{equation}
+\frac{\mathrm d\widehat E}{\mathrm dt}
++\eta\int_{\Omega}\widehat J^2\,\mathrm dA
++\nu\int_{\Omega}\widehat\omega^2\,\mathrm dA=0.
+\end{equation}
+An optional loss is therefore
+\begin{equation}
+\boxed{
+\Lenergy
+=\avg{\left(
+\frac{\mathrm d\widehat E}{\mathrm dt}
++\eta\int\widehat J^2\,\mathrm dA
++\nu\int\widehat\omega^2\,\mathrm dA
+\right)^2}.
+}
+\end{equation}
+This term checks the global balance of energy. It may help suppress unphysical energy growth, but a correct total energy does not guarantee that the local fields are correct.
+
+\subsection{Current and vorticity agreement}
+
+Because Module 2 also saves $J$ and $\omega$, one may compare the derived predictions with those saved arrays:
+\begin{equation}
+\boxed{
+\Lderived
+=\avg{(\widehat J-J)^2}
++\avg{(\widehat\omega-\omega)^2}.
+}
+\end{equation}
+This term emphasizes small spatial structures that may be less visible in $\Ldata$. It is a derivative-based \emph{data} loss, not an independent law of physics.
+
+\begin{notebox}
+Optional constraints should be added one at a time. If every available term is added immediately, it becomes difficult to tell which constraint helps, which one is redundant, and which one makes training worse.
+\end{notebox}
+
+\section{The recommended proof-of-concept loss}
+
+The simplest useful physics-informed objective is
+\begin{equation}
+\boxed{
+\Ltotal
+=w_d\Ldata
++w_{\psi}\Lpdepsi
++w_{\omega}\Lpdeomega
++w_0\Lic
++w_g\Lgauge,
+\qquad
+\Lbc=0.
+}
+\label{eq:recommended_loss}
+\end{equation}
+
+The weights are needed because the losses have different numerical sizes. If one term is much larger, training may ignore the smaller terms even when they are physically important.
+
+A practical sequence is:
+\begin{enumerate}[leftmargin=2em]
+\item Scale $\psi$, $U$, $\Rpsi$, and $\Romega$ using values determined from the training cases.
+\item Train the data-only baseline using $\Ldata$ alone.
+\item Train the same model family with the recommended physics-informed loss.
+\item Add $\Lmean$, $\Lenergy$, or $\Lderived$ only as separate tests.
+\item Inspect every individual loss during training; do not report only their weighted sum.
+\end{enumerate}
+
+There is no universal correct set of weights. The proof of concept should state the chosen values and show that neither PDE equation nor the data term was numerically ignored.
+
+\section{What the presentation can claim without trained results}
+
+This construction demonstrates how physics is inserted into neural-network training:
+\begin{equation}
+\text{simulation agreement}
++\text{equation agreement}
++\text{known conditions}
+\longrightarrow
+\text{one training objective}.
+\end{equation}
+
+It is a valid proof of concept to present the inputs, outputs, residuals, and loss construction even if the network has not yet been trained.
+
+It is \emph{not} evidence that physics-informed training is more accurate or faster. That claim would require actual results from the data-only and physics-informed versions on the same unseen simulation cases.
+
+It is also not a surrogate of genuine M3D-C1 output. The current equations and data come from the independent two-dimensional reduced-MHD model.
+
+\section{Presentation summary}
+
+The combined module can be explained in five statements:
+\begin{enumerate}[leftmargin=2em]
+\item Module 2 supplies examples of MHD evolution.
+\item The neural network predicts $\widehat\psi$ and $\widehat U$ from the initial state, $\eta$, $\nu$, and time.
+\item $\Ldata$ trains the data-only baseline.
+\item $\Lpdepsi$, $\Lpdeomega$, $\Lic$, and $\Lgauge$ penalize violations of the equations and known conditions.
+\item Setting the physics weights to zero or nonzero creates the two versions needed for a fair comparison.
+\end{enumerate}
+
+\begin{overviewbox}
+\textbf{Core idea:} the baseline and the physics-informed model are not two separate projects. They are the same prediction problem with different terms turned on in the training objective.
+\end{overviewbox}
+
+\end{document}

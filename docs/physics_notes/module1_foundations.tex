@@ -1,0 +1,320 @@
+\section{Physical building blocks: electromagnetism and fluid conservation}
+\label{sec:buildingblocks}
+
+\subsection{Lorentz force}
+
+A particle of charge $q$ and velocity $\vect{u}$ experiences the Lorentz force
+\begin{equation}
+\vect{F}=q\left(\vect{E}_{\rm d}+\vect{u}\times\vect{B}_{\rm d}\right),
+\end{equation}
+where $\vect{E}_{\rm d}$ is the electric field and $\vect{B}_{\rm d}$ is the magnetic field. In a fluid, the corresponding macroscopic electromagnetic force density is
+\begin{equation}
+\vect{f}_{\rm EM}=\rho_{q,\rm d}\vect{E}_{\rm d}+\vect{j}_{\rm d}\times\vect{B}_{\rm d},
+\end{equation}
+where $\rho_{q,\rm d}$ is charge density. In nonrelativistic quasi-neutral MHD, the electric-force-density term is smaller in the standard ordering and the dominant macroscopic force is $\vect{j}_{\rm d}\times\vect{B}_{\rm d}$.
+
+\subsection{Reduced Maxwell equations used by MHD}
+
+The MHD model uses
+\begin{align}
+\frac{\partial\vect{B}_{\rm d}}{\partial t_{\rm d}}
+&=-\nabla_{\rm d}\times\vect{E}_{\rm d}
+&&\text{(Faraday's law)},\label{eq:faraday}\\
+\nabla_{\rm d}\times\vect{B}_{\rm d}
+&=\mu_0\vect{j}_{\rm d}
+&&\text{(Ampere's law without displacement current)},\label{eq:ampere}\\
+\nabla_{\rm d}\cdot\vect{B}_{\rm d}&=0
+&&\text{(absence of magnetic monopoles)}.\label{eq:divB}
+\end{align}
+Here $\mu_0$ is the permeability of free space. The displacement current is neglected because standard MHD describes nonrelativistic motions with characteristic speeds much smaller than the speed of light \cite{Goedbloed2004}.
+
+\subsection{Conservation of mass}
+
+For mass density $\rho_{\rm d}$ and fluid velocity $\vect{v}_{\rm d}$,
+\begin{equation}
+\frac{\partial\rho_{\rm d}}{\partial t_{\rm d}}
++\nabla_{\rm d}\cdot(\rho_{\rm d}\vect{v}_{\rm d})=0.
+\label{eq:continuity_dim}
+\end{equation}
+Using the material derivative,
+\begin{equation}
+\frac{D\rho_{\rm d}}{Dt_{\rm d}}+\rho_{\rm d}\nabla_{\rm d}\cdot\vect{v}_{\rm d}=0.
+\end{equation}
+Thus density of a moving fluid element remains constant if the flow is incompressible.
+
+\subsection{Conservation of momentum}
+
+A simple viscous one-fluid momentum equation is
+\begin{equation}
+\rho_{\rm d}\left(
+\frac{\partial\vect{v}_{\rm d}}{\partial t_{\rm d}}
++\vect{v}_{\rm d}\cdot\nabla_{\rm d}\vect{v}_{\rm d}
+\right)
+=-\nabla_{\rm d}p_{\rm d}
++\vect{j}_{\rm d}\times\vect{B}_{\rm d}
++\rho_{\rm d}\nu_{\rm d}\nabla_{\rm d}^{2}\vect{v}_{\rm d}.
+\label{eq:momentum_dim}
+\end{equation}
+The scalar $p_{\rm d}$ is isotropic pressure and $\nu_{\rm d}$ is kinematic viscosity, with units $\unit{m^2\,s^{-1}}$. The left-hand side is mass density times acceleration. On the right are the pressure-gradient force, Lorentz force, and a simplified viscous force.
+
+Production extended-MHD models may use an anisotropic viscous stress tensor rather than the scalar Laplacian term in Eq.~\eqref{eq:momentum_dim}. The scalar form is a deliberate project assumption.
+
+\subsection{Thermodynamic closure}
+
+The fields $\rho_{\rm d}$, $\vect{v}_{\rm d}$, $p_{\rm d}$, and $\vect{B}_{\rm d}$ do not form a closed compressible system without an equation for pressure or internal energy. For example, an adiabatic ideal-gas closure has
+\begin{equation}
+\frac{D p_{\rm d}}{Dt_{\rm d}}+\gamma p_{\rm d}\nabla_{\rm d}\cdot\vect{v}_{\rm d}=0,
+\end{equation}
+where $\gamma$ is the ratio of specific heats. Resistive and viscous heating and thermal conduction add further terms.
+
+The project removes this equation by imposing constant density and incompressibility and then taking the curl of the momentum equation. Pressure remains physically present as the field that enforces incompressibility, but it disappears from the vorticity evolution because the curl of a gradient is zero.
+
+\section{One-fluid resistive magnetohydrodynamics}
+\label{sec:fullmhd}
+
+\subsection{Ohm's law in a moving conducting fluid}
+
+The simplest resistive Ohm's law is
+\begin{equation}
+\vect{E}_{\rm d}+\vect{v}_{\rm d}\times\vect{B}_{\rm d}
+=\rho_{\Omega}\vect{j}_{\rm d}.
+\label{eq:ohm_dim}
+\end{equation}
+The symbol $\rho_{\Omega}$ denotes \emph{electrical resistivity}, with International System of Units (SI) units $\unit{\Omega\,m}$. It is the inverse of electrical conductivity. The combination $\vect{E}_{\rm d}+\vect{v}_{\rm d}\times\vect{B}_{\rm d}$ is the electric field measured in the moving-fluid frame in the nonrelativistic limit.
+
+If $\rho_{\Omega}=0$, Eq.~\eqref{eq:ohm_dim} becomes the ideal-MHD condition
+\begin{equation}
+\vect{E}_{\rm d}+\vect{v}_{\rm d}\times\vect{B}_{\rm d}=0.
+\label{eq:idealohm}
+\end{equation}
+
+\begin{warningbox}
+Electrical resistivity $\rho_{\Omega}$, dimensional magnetic diffusivity $\eta_{\rm m}$, and dimensionless project diffusivity $\eta$ are three related but different quantities:
+\[
+\eta_{\rm m}=\frac{\rho_{\Omega}}{\mu_0},
+\qquad
+\eta=\frac{\eta_{\rm m}}{L_0V_A}.
+\]
+The project symbol $\eta$ never carries units of $\unit{\Omega\,m}$.
+\end{warningbox}
+
+\subsection{Derivation of the resistive induction equation}
+
+Insert Ohm's law into Faraday's law:
+\begin{align}
+\frac{\partial\vect{B}_{\rm d}}{\partial t_{\rm d}}
+&=-\nabla_{\rm d}\times\vect{E}_{\rm d}\\
+&=\nabla_{\rm d}\times(\vect{v}_{\rm d}\times\vect{B}_{\rm d})
+-\nabla_{\rm d}\times(\rho_{\Omega}\vect{j}_{\rm d}).
+\end{align}
+For constant $\rho_{\Omega}$, Ampere's law gives
+\begin{align}
+-\nabla_{\rm d}\times(\rho_{\Omega}\vect{j}_{\rm d})
+&=-\frac{\rho_{\Omega}}{\mu_0}
+\nabla_{\rm d}\times(\nabla_{\rm d}\times\vect{B}_{\rm d})\\
+&=\frac{\rho_{\Omega}}{\mu_0}\nabla_{\rm d}^{2}\vect{B}_{\rm d},
+\end{align}
+where $\nabla\cdot\vect{B}=0$ was used. Defining magnetic diffusivity
+\begin{equation}
+\eta_{\rm m}\equiv\frac{\rho_{\Omega}}{\mu_0},
+\end{equation}
+we obtain
+\begin{equation}
+\frac{\partial\vect{B}_{\rm d}}{\partial t_{\rm d}}
+=\nabla_{\rm d}\times(\vect{v}_{\rm d}\times\vect{B}_{\rm d})
++\eta_{\rm m}\nabla_{\rm d}^{2}\vect{B}_{\rm d}.
+\label{eq:induction_dim}
+\end{equation}
+
+The first term transports and deforms magnetic field with the fluid. The second term diffuses magnetic field and permits magnetic topology to change. In an almost ideal plasma, $\eta_{\rm m}$ can be small while $\eta_{\rm m}\nabla^2\vect{B}$ remains important inside a thin current sheet, where spatial derivatives become large \cite{Goedbloed2004,Goedbloed2010}.
+
+\subsection{The one-fluid resistive-MHD set}
+
+In its simplified form, the parent model contains
+\begin{align}
+\frac{\partial\rho_{\rm d}}{\partial t_{\rm d}}
++\nabla_{\rm d}\cdot(\rho_{\rm d}\vect{v}_{\rm d})&=0,\\
+\rho_{\rm d}\frac{D\vect{v}_{\rm d}}{Dt_{\rm d}}
+&=-\nabla_{\rm d}p_{\rm d}+\vect{j}_{\rm d}\times\vect{B}_{\rm d}
++\rho_{\rm d}\nu_{\rm d}\nabla_{\rm d}^2\vect{v}_{\rm d},\\
+\frac{\partial\vect{B}_{\rm d}}{\partial t_{\rm d}}
+&=\nabla_{\rm d}\times(\vect{v}_{\rm d}\times\vect{B}_{\rm d})
++\eta_{\rm m}\nabla_{\rm d}^2\vect{B}_{\rm d},\\
+\nabla_{\rm d}\cdot\vect{B}_{\rm d}&=0,\\
+\mu_0\vect{j}_{\rm d}&=\nabla_{\rm d}\times\vect{B}_{\rm d},
+\end{align}
+plus a thermodynamic closure. This is the physical parent from which the project model is reduced.
+
+\subsection{Ideal versus resistive MHD}
+
+Ideal MHD sets electrical resistivity and viscosity to zero. It is not the entirety of plasma physics. It is a particular nondissipative fluid limit. Resistive MHD retains finite electrical resistivity, producing Ohmic heating and magnetic diffusion. Viscous-resistive MHD also retains viscous diffusion of momentum or vorticity.
+
+The word \emph{non-ideal} is broader than \emph{resistive}. Hall drift, electron-pressure terms, electron inertia, anisotropic stresses, and kinetic effects can all violate the ideal Ohm's law. The present project retains only scalar resistive and viscous departures from the ideal two-field dynamics.
+
+\section{Assumptions that define the project reduction}
+\label{sec:reduction}
+
+The final equations are not guessed. They follow from the parent model after the assumptions below are imposed. Each assumption has both a mathematical consequence and a physical cost.
+
+\begin{longtable}{p{0.23\textwidth}p{0.32\textwidth}p{0.35\textwidth}}
+\toprule
+Assumption & Mathematical consequence & Physics omitted or restricted \\
+\midrule
+\endfirsthead
+\toprule
+Assumption & Mathematical consequence & Physics omitted or restricted \\
+\midrule
+\endhead
+Two-dimensional Cartesian domain & $\partial_z=0$; evolved fields depend on $(x,y,t)$ only & Toroidal geometry, three-dimensional variation, and parallel structure \\
+Constant mass density $\rho_0$ & Density equation becomes redundant & Compression, density waves, stratification, and density transport \\
+Incompressible flow & $\nabla_\perp\cdot\vect{v}_\perp=0$ & Fast and slow magnetosonic compression and acoustic dynamics \\
+Strong, uniform guide field & $\vect{B}=B_g\widehat{\vect{z}}+\vect{B}_\perp$ & Evolution of guide-field magnitude and associated compressional physics \\
+Perpendicular in-plane flow & $v_z=0$ & Parallel flow and parallel momentum dynamics \\
+Scalar constant resistivity & One coefficient $\eta_{\rm m}$ multiplies $\nabla^2\vect{B}$ & Temperature-dependent, anisotropic, anomalous, and tensor resistivity \\
+Scalar constant viscosity & One coefficient $\nu_{\rm d}$ multiplies $\nabla^2\vect{v}$ & Anisotropic collisional stress, finite-gyroradius viscous corrections, and spatially varying transport \\
+No separate pressure/energy evolution & Curl of momentum removes $p$ & Temperature, heat conduction, Ohmic heating feedback, and pressure-driven modes \\
+Doubly periodic boundaries & No physical wall or boundary flux & Wall currents, vacuum region, separatrix, material interfaces, and sheath physics \\
+\bottomrule
+\end{longtable}
+
+\subsection{Two-dimensional geometry and the guide field}
+
+Let the magnetic field be
+\begin{equation}
+\vect{B}_{\rm d}=B_g\widehat{\vect{z}}+\vect{B}_{\perp,\rm d},
+\end{equation}
+where $B_g$ is a constant guide field and $\vect{B}_{\perp,\rm d}$ lies in the $x$-$y$ plane. All fields satisfy $\partial_z=0$. Because the guide field is spatially uniform, it produces no current. Because the current in this strict two-dimensional model points in the $z$ direction, its cross product with $B_g\widehat{\vect{z}}$ vanishes. The guide field motivates the reduced ordering but does not explicitly appear in the final two-dimensional equations.
+
+\begin{warningbox}
+The full three-dimensional two-field reduced-MHD equations normally contain derivatives along the guide field. Setting $\partial_z=0$ removes those terms. The project system is therefore the strictly two-dimensional limit of two-field reduced MHD and is also mathematically equivalent, up to sign and normalization conventions, to two-dimensional incompressible resistive MHD with a uniform guide field.
+\end{warningbox}
+
+\subsection{Constant density and incompressibility}
+
+Set $\rho_{\rm d}=\rho_0$, a positive constant. The continuity equation becomes
+\begin{equation}
+\rho_0\nabla_{\rm d}\cdot\vect{v}_{\rm d}=0,
+\end{equation}
+so
+\begin{equation}
+\nabla_{\rm d}\cdot\vect{v}_{\rm d}=0.
+\end{equation}
+Incompressibility does not mean that the velocity is spatially uniform. It means that the local volume of a moving fluid element does not change. The flow may still shear, stretch, rotate, and form small scales.
+
+\subsection{Why pressure disappears but is not physically absent}
+
+Pressure in incompressible flow adjusts so that the velocity remains divergence-free. If one solves directly for velocity, pressure is a Lagrange-multiplier-like field coupled through an elliptic equation. The project instead takes the curl of momentum. Since
+\begin{equation}
+\nabla\times(-\nabla p)=0,
+\end{equation}
+pressure disappears from the vorticity equation. This is a mathematical elimination of the pressure gradient, not an assertion that the plasma has zero pressure.
+
+\section{Flux and stream functions: building divergence-free fields}
+\label{sec:potentials}
+
+\subsection{Magnetic-flux function}
+
+Define a dimensional scalar magnetic-flux function $\psi_{\rm d}(x_{\rm d},y_{\rm d},t_{\rm d})$ by
+\begin{equation}
+\vect{B}_{\perp,\rm d}
+=\nabla_{\rm d}\psi_{\rm d}\times\widehat{\vect{z}}.
+\label{eq:Bpsi_dim}
+\end{equation}
+The cross product gives
+\begin{equation}
+\vect{B}_{\perp,\rm d}
+=\left(\frac{\partial\psi_{\rm d}}{\partial y_{\rm d}},
+-\frac{\partial\psi_{\rm d}}{\partial x_{\rm d}},0\right).
+\label{eq:Bcomponents_dim}
+\end{equation}
+Because $\vect{B}_{\perp,\rm d}=\nabla\times(\psi_{\rm d}\widehat{\vect{z}})$, it is divergence-free automatically:
+\begin{equation}
+\nabla_{\rm d}\cdot\vect{B}_{\perp,\rm d}=0.
+\end{equation}
+The SI unit of $\psi_{\rm d}$ is tesla-meter, $\unit{T\,m}$, which is magnetic flux per unit distance in the ignorable $z$ direction.
+
+The magnetic field is tangent to contours of $\psi_{\rm d}$ because
+\begin{equation}
+\vect{B}_{\perp,\rm d}\cdot\nabla_{\rm d}\psi_{\rm d}=0.
+\end{equation}
+Thus, in a two-dimensional plot, contour lines of $\psi$ are magnetic-field lines in the plane.
+
+\subsection{Flow stream function}
+
+Define a dimensional stream function $U_{\rm d}$ by
+\begin{equation}
+\vect{v}_{\perp,\rm d}
+=\widehat{\vect{z}}\times\nabla_{\rm d}U_{\rm d}.
+\label{eq:vU_dim}
+\end{equation}
+Therefore,
+\begin{equation}
+\vect{v}_{\perp,\rm d}
+=\left(-\frac{\partial U_{\rm d}}{\partial y_{\rm d}},
+\frac{\partial U_{\rm d}}{\partial x_{\rm d}},0\right).
+\label{eq:vcomponents_dim}
+\end{equation}
+This field is also divergence-free identically. The SI unit of $U_{\rm d}$ is $\unit{m^2\,s^{-1}}$, because one spatial derivative of $U_{\rm d}$ must have velocity units.
+
+\begin{conventionbox}
+After nondimensionalization, the project uses
+\[
+\boxed{
+\vect{B}_{\perp}=\nabla\psi\times\widehat{\vect{z}}
+=(\psi_y,-\psi_x),
+\qquad
+\vect{v}_{\perp}=\widehat{\vect{z}}\times\nabla U
+=(-U_y,U_x).}
+\]
+Changing either cross-product order changes signs throughout the model. These definitions are frozen.
+\end{conventionbox}
+
+\subsection{Current density from the flux function}
+
+Ampere's law gives an out-of-plane current density. From Eq.~\eqref{eq:Bcomponents_dim},
+\begin{align}
+\mu_0 j_{z,\rm d}
+&=(\nabla_{\rm d}\times\vect{B}_{\perp,\rm d})_z\\
+&=\frac{\partial B_{y,\rm d}}{\partial x_{\rm d}}
+-\frac{\partial B_{x,\rm d}}{\partial y_{\rm d}}\\
+&=-\frac{\partial^2\psi_{\rm d}}{\partial x_{\rm d}^2}
+-\frac{\partial^2\psi_{\rm d}}{\partial y_{\rm d}^2}\\
+&=-\nabla_{\perp,\rm d}^{2}\psi_{\rm d}.
+\label{eq:jpsi_dim}
+\end{align}
+The dimensionless project current variable will be scaled so that
+\begin{equation}
+\boxed{J=-\Lap\psi.}
+\label{eq:Jdef}
+\end{equation}
+The scalar $J$ is proportional to physical current density $j_{z,\rm d}$; it is not itself an SI current density.
+
+\subsection{Vorticity from the stream function}
+
+The out-of-plane vorticity is
+\begin{align}
+\omega_{z,\rm d}
+&=(\nabla_{\rm d}\times\vect{v}_{\perp,\rm d})_z\\
+&=\frac{\partial v_{y,\rm d}}{\partial x_{\rm d}}
+-\frac{\partial v_{x,\rm d}}{\partial y_{\rm d}}\\
+&=\frac{\partial^2 U_{\rm d}}{\partial x_{\rm d}^2}
++\frac{\partial^2 U_{\rm d}}{\partial y_{\rm d}^2}\\
+&=\nabla_{\perp,\rm d}^{2}U_{\rm d}.
+\end{align}
+After nondimensionalization,
+\begin{equation}
+\boxed{\omega=\Lap U.}
+\label{eq:omegadef}
+\end{equation}
+
+\begin{checkpointbox}
+The signs are not arbitrary once the vector definitions are fixed. The chain is
+\[
+\vect{B}_\perp=(\psi_y,-\psi_x)
+\Rightarrow J=-\nabla^2\psi,
+\qquad
+\vect{v}_\perp=(-U_y,U_x)
+\Rightarrow\omega=+\nabla^2U.
+\]
+The opposite signs of $J$ and $\omega$ arise from the opposite cross-product order in the definitions of $\vect{B}_\perp$ and $\vect{v}_\perp$.
+\end{checkpointbox}
